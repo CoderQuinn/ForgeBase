@@ -8,7 +8,6 @@
 /// - `beValue` is ALWAYS network byte order (big-endian)
 /// - Host byte order MUST NOT appear in public APIs
 public struct FBIPv4: Equatable, Hashable, Sendable {
-
     /// Network byte order (big-endian)
     public let beValue: UInt32
 
@@ -19,16 +18,15 @@ public struct FBIPv4: Equatable, Hashable, Sendable {
 
     @inline(__always)
     public init(a: UInt8, b: UInt8, c: UInt8, d: UInt8) {
-        self.beValue =
+        beValue =
             UInt32(a) << 24 |
             UInt32(b) << 16 |
-            UInt32(c) << 8  |
+            UInt32(c) << 8 |
             UInt32(d)
     }
 }
 
 public extension FBIPv4 {
-
     /// Dotted-decimal string, e.g. "8.8.8.8"
     var dottedDecimalString: String {
         let a = (beValue >> 24) & 0xFF

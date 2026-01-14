@@ -24,7 +24,7 @@ let package = Package(
             path: "Sources/ForgeBaseC",
             publicHeadersPath: "include",
             cSettings: [
-                .define("FORGEBASE", to: "1")
+                .define("FORGEBASE", to: "1"),
             ]
         ),
         .testTarget(

@@ -5,14 +5,10 @@
 //  Created by MagicianQuinn on 2025/12/31.
 //
 
-import Network
 import Foundation
-
 import Network
-import Foundation
 
 public extension FBIPv4 {
-
     @inline(__always)
     init(_ address: IPv4Address) {
         let bytes = address.rawValue
@@ -38,7 +34,6 @@ public extension FBIPv4 {
 }
 
 public extension FBIPv4CIDR {
-
     /// Network.framework convenience wrapper
     @inline(__always)
     static func contains(
