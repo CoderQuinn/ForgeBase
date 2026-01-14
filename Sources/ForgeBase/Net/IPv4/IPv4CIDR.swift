@@ -6,11 +6,10 @@
 /// IPv4 CIDR / prefix utilities.
 /// All UInt32 values are NETWORK BYTE ORDER.
 public enum FBIPv4CIDR {
-
     /// prefixLength → netmask (UInt32, network byte order)
     @inline(__always)
     public static func netmaskBE(prefixLength: Int) -> UInt32? {
-        guard (0...32).contains(prefixLength) else { return nil }
+        guard (0 ... 32).contains(prefixLength) else { return nil }
         guard prefixLength > 0 else { return 0 }
         return UInt32.max << (32 - prefixLength)
     }

@@ -9,7 +9,6 @@ import Foundation
 /// Convention:
 /// - All UInt32 values are NETWORK BYTE ORDER (big-endian)
 public enum FBIPv4Parse {
-
     // MARK: - Dotted decimal parsing
 
     /// Parse dotted-decimal IPv4 string, e.g. "192.168.1.1"
@@ -27,7 +26,7 @@ public enum FBIPv4Parse {
         var hasDigit = false
 
         for ch in s.utf8 {
-            if ch >= 48 && ch <= 57 { // '0'...'9'
+            if ch >= 48, ch <= 57 { // '0'...'9'
                 hasDigit = true
                 current = current * 10 + Int(ch - 48)
                 if current > 255 { return nil }
@@ -68,7 +67,6 @@ public enum FBIPv4Parse {
     public static func parseCIDR(
         _ cidr: String
     ) -> (networkBE: UInt32, prefixLength: Int)? {
-
         let trimmed = cidr.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = trimmed.split(
             separator: "/",
@@ -82,7 +80,7 @@ public enum FBIPv4Parse {
         let prefixPart = parts[1]
 
         guard let prefixLength = Int(prefixPart),
-              (0...32).contains(prefixLength)
+              (0 ... 32).contains(prefixLength)
         else {
             return nil
         }
@@ -106,10 +104,9 @@ public enum FBIPv4Parse {
     public static func parseCIDRToStrings(
         _ cidr: String
     ) -> (ip: String, mask: String)? {
-
         guard let parsed = parseCIDR(cidr),
               let maskBE = FBIPv4CIDR.netmaskBE(
-                prefixLength: parsed.prefixLength
+                  prefixLength: parsed.prefixLength
               )
         else {
             return nil
