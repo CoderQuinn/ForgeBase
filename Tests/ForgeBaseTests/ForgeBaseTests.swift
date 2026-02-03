@@ -1,7 +1,8 @@
-@testable import ForgeBase
 import Foundation
 import Network
 import XCTest
+
+@testable import ForgeBase
 
 final class ForgeBaseTests: XCTestCase {
     func testParseDottedDecimal_valid() {
@@ -88,14 +89,14 @@ final class ForgeBaseTests: XCTestCase {
 
     func testPacketBufferWriter() {
         var writer = FBPacketBufferWriter()
-        let offset = writer.reserve16() // placeholder
+        let offset = writer.reserve16()  // placeholder
         writer.writeUInt8(0xAA)
         writer.writeUInt16(0x0102)
         writer.writeUInt32(0x0A0B_0C0D)
         writer.fillUInt16(at: offset, value: 0xBEEF)
 
         let expected = Data([
-            0xBE, 0xEF, // filled
+            0xBE, 0xEF,  // filled
             0xAA,
             0x01, 0x02,
             0x0A, 0x0B, 0x0C, 0x0D,

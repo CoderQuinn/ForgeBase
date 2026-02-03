@@ -110,15 +110,15 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
 
     /// Materialize into a standalone Data (copy)
     public func materialize() -> Data {
-        data.subdata(in: start ..< start + length)
+        data.subdata(in: start..<start + length)
     }
 }
 
 /// FBPacketBuffer is sealed to FBDataPacketBuffer / FBDataSlicePacketBuffer.
 /// Adding new conforming types requires updating materialize().
-public extension FBPacketBuffer {
+extension FBPacketBuffer {
     /// IO boundary only. One unavoidable copy.
-    func materialize() -> Data {
+    public func materialize() -> Data {
         if let dataSlice = self as? FBDataSlicePacketBuffer {
             return dataSlice.materialize()
         }
@@ -212,7 +212,6 @@ public struct FBPacketBufferWriter {
             writeUInt8(UInt8(bytes.count))
             raw(bytes)
         }
-        writeUInt8(0) // terminator
+        writeUInt8(0)  // terminator
     }
 }
-

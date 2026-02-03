@@ -72,7 +72,7 @@ public enum FBUDPIPPacketBuilder {
 
         // Compute IPv4 header checksum
         let csum = ipv4HeaderChecksum(ipHeader20: ip)
-        ip.replaceSubrange(10 ..< 12, with: [UInt8(csum >> 8), UInt8(csum & 0xFF)])
+        ip.replaceSubrange(10..<12, with: [UInt8(csum >> 8), UInt8(csum & 0xFF)])
 
         // payload
         ip.append(udp)
@@ -103,8 +103,8 @@ public enum FBUDPIPPacketBuilder {
 
 // MARK: - Data helpers
 
-private extension Data {
-    mutating func appendUInt16BE(_ v: UInt16) {
+extension Data {
+    fileprivate mutating func appendUInt16BE(_ v: UInt16) {
         append(UInt8((v >> 8) & 0xFF))
         append(UInt8(v & 0xFF))
     }
