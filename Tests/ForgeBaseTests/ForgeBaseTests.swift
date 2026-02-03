@@ -1,7 +1,7 @@
+@testable import ForgeBase
 import Foundation
 import Network
 import XCTest
-@testable import ForgeBase
 
 final class ForgeBaseTests: XCTestCase {
     func testParseDottedDecimal_valid() {
@@ -12,7 +12,7 @@ final class ForgeBaseTests: XCTestCase {
 
     func testParseDottedDecimal_invalidInputs() {
         let invalid = [
-            "", "1.2.3", "256.0.0.1", "1.2.3.4.5", "a.b.c.d"
+            "", "1.2.3", "256.0.0.1", "1.2.3.4.5", "a.b.c.d",
         ]
         for value in invalid {
             XCTAssertNil(
@@ -76,7 +76,7 @@ final class ForgeBaseTests: XCTestCase {
         XCTAssertEqual(buf.readableBytes, 5)
         XCTAssertEqual(buf.loadUInt8(at: 0), 0x01)
         XCTAssertEqual(buf.loadUInt16(at: 0), 0x0102)
-        XCTAssertEqual(buf.loadUInt32(at: 0), 0x01020304)
+        XCTAssertEqual(buf.loadUInt32(at: 0), 0x0102_0304)
         XCTAssertNil(buf.loadUInt32(at: 2))
 
         let slice = buf.slice(from: 1, length: 3) as? FBDataSlicePacketBuffer
@@ -91,7 +91,7 @@ final class ForgeBaseTests: XCTestCase {
         let offset = writer.reserve16() // placeholder
         writer.writeUInt8(0xAA)
         writer.writeUInt16(0x0102)
-        writer.writeUInt32(0x0A0B0C0D)
+        writer.writeUInt32(0x0A0B_0C0D)
         writer.fillUInt16(at: offset, value: 0xBEEF)
 
         let expected = Data([
@@ -147,7 +147,9 @@ final class ForgeBaseTests: XCTestCase {
         for i in stride(from: 0, to: 20, by: 2) {
             sum &+= UInt32(header[i]) << 8 | UInt32(header[i + 1])
         }
-        while (sum >> 16) != 0 { sum = (sum & 0xFFFF) + (sum >> 16) }
+        while (sum >> 16) != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
         XCTAssertEqual(UInt16(~sum & 0xFFFF), 0)
     }
 }
