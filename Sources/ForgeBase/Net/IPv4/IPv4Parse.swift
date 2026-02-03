@@ -26,11 +26,11 @@ public enum FBIPv4Parse {
         var hasDigit = false
 
         for ch in s.utf8 {
-            if ch >= 48, ch <= 57 { // '0'...'9'
+            if ch >= 48, ch <= 57 {  // '0'...'9'
                 hasDigit = true
                 current = current * 10 + Int(ch - 48)
                 if current > 255 { return nil }
-            } else if ch == 46 { // '.'
+            } else if ch == 46 {  // '.'
                 guard hasDigit else { return nil }
                 octets.append(UInt8(current))
                 if octets.count > 3 { return nil }
@@ -80,7 +80,7 @@ public enum FBIPv4Parse {
         let prefixPart = parts[1]
 
         guard let prefixLength = Int(prefixPart),
-              (0 ... 32).contains(prefixLength)
+            (0...32).contains(prefixLength)
         else {
             return nil
         }
@@ -89,10 +89,12 @@ public enum FBIPv4Parse {
             return nil
         }
 
-        guard let networkBE = FBIPv4CIDR.networkBaseBE(
-            addressBE: ip.beValue,
-            prefixLength: prefixLength
-        ) else {
+        guard
+            let networkBE = FBIPv4CIDR.networkBaseBE(
+                addressBE: ip.beValue,
+                prefixLength: prefixLength
+            )
+        else {
             return nil
         }
 
@@ -105,9 +107,9 @@ public enum FBIPv4Parse {
         _ cidr: String
     ) -> (ip: String, mask: String)? {
         guard let parsed = parseCIDR(cidr),
-              let maskBE = FBIPv4CIDR.netmaskBE(
-                  prefixLength: parsed.prefixLength
-              )
+            let maskBE = FBIPv4CIDR.netmaskBE(
+                prefixLength: parsed.prefixLength
+            )
         else {
             return nil
         }

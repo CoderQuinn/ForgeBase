@@ -110,15 +110,15 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
 
     /// Materialize into a standalone Data (copy)
     public func materialize() -> Data {
-        data.subdata(in: start ..< start + length)
+        data.subdata(in: start..<start + length)
     }
 }
 
 /// FBPacketBuffer is sealed to FBDataPacketBuffer / FBDataSlicePacketBuffer.
 /// Adding new conforming types requires updating materialize().
-public extension FBPacketBuffer {
+extension FBPacketBuffer {
     /// IO boundary only. One unavoidable copy.
-    func materialize() -> Data {
+    public func materialize() -> Data {
         if let dataSlice = self as? FBDataSlicePacketBuffer {
             return dataSlice.materialize()
         }
@@ -131,22 +131,31 @@ public extension FBPacketBuffer {
 }
 
 public struct FBPacketBufferWriter {
-    public private(set) var data = Data()
+    public private(set) var data: Data
     public private(set) var position: Int = 0
 
-    public init() {}
+    /// capacity: optional preallocation hint
+    public init(capacity: Int = 0) {
+        self.data = Data()
+        if capacity > 0 {
+            self.data.reserveCapacity(capacity)
+        }
+    }
 
+    @inline(__always)
     public mutating func writeUInt8(_ value: UInt8) {
         data.append(value)
         position += 1
     }
 
+    @inline(__always)
     public mutating func writeUInt16(_ value: UInt16) {
         data.append(UInt8((value >> 8) & 0xFF))
         data.append(UInt8(value & 0xFF))
         position += 2
     }
 
+    @inline(__always)
     public mutating func writeUInt32(_ value: UInt32) {
         data.append(UInt8((value >> 24) & 0xFF))
         data.append(UInt8((value >> 16) & 0xFF))
@@ -155,40 +164,54 @@ public struct FBPacketBufferWriter {
         position += 4
     }
 
+    @inline(__always)
     public mutating func raw<T: Collection>(_ bytes: T) where T.Element == UInt8 {
         data.append(contentsOf: bytes)
         position += bytes.count
     }
 
-    public mutating func raw(_ data: Data) {
-        self.data.append(data)
-        position += data.count
+    @inline(__always)
+    public mutating func raw(_ other: Data) {
+        data.append(other)
+        position += other.count
     }
 
+    @inline(__always)
     public mutating func pointer(to offset: Int) {
-        precondition(offset <= 0x3FFF, "DNS pointer offset overflow")
+        precondition(offset >= 0 && offset <= 0x3FFF, "DNS pointer offset overflow")
         let ptr = UInt16(0xC000) | UInt16(offset)
         writeUInt16(ptr)
     }
 
+    /// Reserve 2 bytes and return offset for later fill
+    @inline(__always)
     public mutating func reserve16() -> Int {
         let pos = position
         writeUInt16(0)
         return pos
     }
 
+    @inline(__always)
     public mutating func fillUInt16(at offset: Int, value: UInt16) {
         precondition(offset >= 0 && offset + 2 <= data.count, "Invalid offset for fillUInt16")
         data[offset] = UInt8((value >> 8) & 0xFF)
         data[offset + 1] = UInt8(value & 0xFF)
     }
 
+    /// DNS QNAME writer (RFC 1035)
     public mutating func name(_ name: String) {
+        // empty name => root
+        if name.isEmpty {
+            writeUInt8(0)
+            return
+        }
+
         for label in name.split(separator: ".") {
             let bytes = label.utf8
+            precondition(bytes.count <= 63, "DNS label too long: \(label)")
             writeUInt8(UInt8(bytes.count))
             raw(bytes)
         }
-        writeUInt8(0) // null terminator
+        writeUInt8(0)  // terminator
     }
 }

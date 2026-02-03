@@ -8,9 +8,9 @@
 import Foundation
 import Network
 
-public extension FBIPv4 {
+extension FBIPv4 {
     @inline(__always)
-    init(_ address: IPv4Address) {
+    public init(_ address: IPv4Address) {
         let bytes = address.rawValue
         precondition(bytes.count == 4, "Invalid IPv4Address rawValue length")
         self.init(
@@ -22,7 +22,7 @@ public extension FBIPv4 {
     }
 
     @inline(__always)
-    var asNetworkIPv4Address: IPv4Address? {
+    public var asNetworkIPv4Address: IPv4Address? {
         let data = Data([
             UInt8((beValue >> 24) & 0xFF),
             UInt8((beValue >> 16) & 0xFF),
@@ -33,10 +33,10 @@ public extension FBIPv4 {
     }
 }
 
-public extension FBIPv4CIDR {
+extension FBIPv4CIDR {
     /// Network.framework convenience wrapper
     @inline(__always)
-    static func contains(
+    public static func contains(
         address: IPv4Address,
         networkBE: UInt32,
         prefixLength: Int

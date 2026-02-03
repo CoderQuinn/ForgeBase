@@ -72,9 +72,9 @@ public struct FBIPPacketView {
         protocolNumber = proto
 
         guard let src = buffer.loadUInt32(at: 12),
-              let dst = buffer.loadUInt32(at: 16),
-              let srcAddr = FBIPv4(beValue: src).asNetworkIPv4Address,
-              let dstAddr = FBIPv4(beValue: dst).asNetworkIPv4Address
+            let dst = buffer.loadUInt32(at: 16),
+            let srcAddr = FBIPv4(beValue: src).asNetworkIPv4Address,
+            let dstAddr = FBIPv4(beValue: dst).asNetworkIPv4Address
         else {
             return nil
         }
@@ -101,8 +101,8 @@ public struct FBUDPView {
         let base = ip.payloadOffset
 
         guard let sp = ip.buffer.loadUInt16(at: base),
-              let dp = ip.buffer.loadUInt16(at: base + 2),
-              let udpLen = ip.buffer.loadUInt16(at: base + 4)
+            let dp = ip.buffer.loadUInt16(at: base + 2),
+            let udpLen = ip.buffer.loadUInt16(at: base + 4)
         else {
             return nil
         }
