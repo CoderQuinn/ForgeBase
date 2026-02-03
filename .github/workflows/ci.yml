@@ -1,0 +1,60 @@
+name: CI (Build, Test, Format)
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    name: Build and Unit Tests
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Use PR head branch when available so we can push formatting fixes
+          ref: ${{ github.head_ref || github.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install swift-format
+        run: |
+          brew update
+          brew install swift-format || true
+
+      - name: Swift Format Auto-Fix
+        run: |
+          if command -v swift-format >/dev/null 2>&1; then
+            swift-format format --configuration .swift-format --recursive --in-place .
+          else
+            echo "swift-format not installed; skipping lint"
+          fi
+
+      - name: Commit and Push Formatting Changes
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No formatting changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(format): auto-format via CI"
+          git push
+
+      - name: Build
+        run: swift build -v
+
+      - name: Test
+        run: swift test --parallel -v
