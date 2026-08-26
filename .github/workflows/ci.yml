@@ -1,60 +1,57 @@
-name: CI (Build, Test, Format)
+name: CI
 
 on:
+  pull_request:
   push:
     branches:
-      - 'main'
-  pull_request:
-    branches:
-      - 'main'
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build and Unit Tests
-    runs-on: macos-latest
+  swift-package:
+    name: Swift package gate
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      FORGEBASE_LINE_COVERAGE_MIN: "95.0"
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v7
         with:
-          # Use PR head branch when available so we can push formatting fixes
-          ref: ${{ github.head_ref || github.ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Install swift-format
+      - name: Print toolchain
         run: |
-          brew update
-          brew install swift-format || true
+          sw_vers
+          xcodebuild -version
+          swift --version
+          xcrun llvm-cov --version
 
-      - name: Swift Format Auto-Fix
+      - name: Resolve package from clean checkout
         run: |
-          if command -v swift-format >/dev/null 2>&1; then
-            swift-format format --configuration .swift-format --recursive --in-place .
-          else
-            echo "swift-format not installed; skipping lint"
-          fi
+          swift package reset
+          swift package resolve
 
-      - name: Commit and Push Formatting Changes
-        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and test Debug
         run: |
-          if [[ -z "$(git status --porcelain)" ]]; then
-            echo "No formatting changes to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(format): auto-format via CI"
-          git push
+          swift package clean
+          swift build --configuration debug
+          swift test --configuration debug
 
-      - name: Build
-        run: swift build -v
+      - name: Build and test Release
+        run: |
+          swift package clean
+          swift build --configuration release
+          swift test --configuration release
 
-      - name: Test
-        run: swift test --parallel -v
+      - name: Run production coverage gate
+        run: ./Scripts/ci/check-swift-coverage.sh

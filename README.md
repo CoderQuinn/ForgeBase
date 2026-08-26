@@ -93,3 +93,4 @@ Network.framework helpers for presentation and bridging.
 
 - Swift 5.9+
 - Tests live under `Tests/ForgeBaseTests` (IPv4 parsing, CIDR utilities, packet buffers, UDP/IPv4 build/parse)
+- CI and the locally reproducible coverage gate are documented in [`docs/CI.md`](docs/CI.md)
