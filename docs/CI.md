@@ -7,8 +7,8 @@ request.
 
 The gate runs on the pinned `macos-15` GitHub-hosted image and prints the macOS,
 Xcode, Swift, and LLVM coverage toolchain before resolving the package. It then
-runs clean Debug and Release builds/tests and a separate instrumented Debug test
-run for line coverage.
+runs a non-mutating strict `swift-format` lint, clean Debug and Release
+builds/tests, and a separate instrumented Debug test run for line coverage.
 
 ## Local validation
 
@@ -17,6 +17,7 @@ Run the same build and test sequence from the repository root:
 ```sh
 swift package clean
 swift package resolve
+./Scripts/ci/check-swift-format.sh
 swift build --configuration debug
 swift test --configuration debug
 
@@ -34,6 +35,13 @@ FORGEBASE_LINE_COVERAGE_MIN=95.0 ./Scripts/ci/check-swift-coverage.sh
 The script owns a separate `.build/ci-coverage` scratch directory, runs all
 tests with Swift code coverage, prints a per-file summary, and fails if total
 production line coverage is below 95.0%.
+
+The format script runs `swift-format lint --strict` over `Package.swift`,
+`Sources`, and `Tests`; it never rewrites files. It has one exact baseline
+allowance for the existing `NeverForceUnwrap` diagnostic at
+`PacketBuffer.swift:31`. Any other diagnostic fails the gate. Remove that
+allowance when the production implementation no longer force-unwraps the raw
+buffer base address.
 
 ## Coverage scope and baseline
 
