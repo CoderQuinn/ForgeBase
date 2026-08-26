@@ -46,10 +46,11 @@ printf '%s\n%s\n' "${known_error_diagnostic}" "${known_warning_diagnostic}" > "$
 
 assert_passes "zero status with zero diagnostics" 0 "${empty_output}"
 assert_passes "nonzero status with one allowlisted error diagnostic" 1 "${single_error_allowlisted}"
-assert_passes "nonzero status with one allowlisted warning diagnostic" 1 "${single_warning_allowlisted}"
+assert_passes "another nonzero status with one allowlisted warning diagnostic" 2 "${single_warning_allowlisted}"
 
 assert_fails "zero status with diagnostics" 0 "${single_error_allowlisted}"
 assert_fails "nonzero status with no diagnostics" 1 "${empty_output}"
+assert_fails "another nonzero status with no diagnostics" 2 "${empty_output}"
 assert_fails "nonzero status with duplicate allowlisted diagnostics" 1 "${duplicate_allowlisted}"
 assert_fails "nonzero status with unexpected diagnostic" 1 "${unexpected_output}"
 assert_fails "nonzero status with mixed diagnostics" 1 "${mixed_output}"
