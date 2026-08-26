@@ -4,7 +4,8 @@ set -euo pipefail
 
 readonly script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly repository_root="$(cd "${script_directory}/../.." && pwd)"
-readonly known_diagnostic="Sources/ForgeBase/Net/Packets/PacketBuffer.swift:31:9: error: [NeverForceUnwrap] do not force unwrap '\$0.baseAddress'"
+readonly known_error_diagnostic="Sources/ForgeBase/Net/Packets/PacketBuffer.swift:31:9: error: [NeverForceUnwrap] do not force unwrap '\$0.baseAddress'"
+readonly known_warning_diagnostic="Sources/ForgeBase/Net/Packets/PacketBuffer.swift:31:9: warning: [NeverForceUnwrap] do not force unwrap '\$0.baseAddress'"
 
 validate_swift_format_result() {
     local lint_status="$1"
@@ -15,9 +16,11 @@ validate_swift_format_result() {
     while IFS= read -r diagnostic; do
         [[ -z "${diagnostic}" ]] && continue
         diagnostic_count=$((diagnostic_count + 1))
-        if [[ "${diagnostic}" == "${known_diagnostic}" ]]; then
-            allowlisted_count=$((allowlisted_count + 1))
-        fi
+        case "${diagnostic}" in
+            "${known_error_diagnostic}"|"${known_warning_diagnostic}")
+                allowlisted_count=$((allowlisted_count + 1))
+                ;;
+        esac
     done < "${diagnostics_file}"
 
     if [[ "${lint_status}" -eq 0 ]]; then

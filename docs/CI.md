@@ -40,12 +40,14 @@ production line coverage is below 95.0%.
 The format script runs `swift-format lint --strict` over `Package.swift`,
 `Sources`, and `Tests`; it never rewrites files. It has one exact baseline
 allowance for the existing `NeverForceUnwrap` diagnostic at
-`PacketBuffer.swift:31`. A successful lint process must emit no diagnostics; a
-nonzero lint process must emit exactly one copy of that exact diagnostic. Empty,
-duplicate, mixed, or unexpected output/status combinations fail the gate. The
-shell-level ratchet self-check runs before the real lint. Remove the allowance
-when the production implementation no longer force-unwraps the raw buffer base
-address.
+`PacketBuffer.swift:31`. Its complete `warning` spelling from CI's Swift 6.1.2
+and complete `error` spelling from Swift 6.3 are listed explicitly because the
+severity changed between toolchains. A successful lint process must emit no
+diagnostics; a nonzero lint process must emit exactly one copy of one exact
+variant. Empty, duplicate, mixed, or unexpected output/status combinations fail
+the gate. The shell-level ratchet self-check runs before the real lint. Remove
+the allowance when the production implementation no longer force-unwraps the
+raw buffer base address.
 
 ## Coverage scope and baseline
 
