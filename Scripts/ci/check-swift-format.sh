@@ -6,38 +6,61 @@ readonly script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly repository_root="$(cd "${script_directory}/../.." && pwd)"
 readonly known_diagnostic="Sources/ForgeBase/Net/Packets/PacketBuffer.swift:31:9: error: [NeverForceUnwrap] do not force unwrap '\$0.baseAddress'"
 
-cd "${repository_root}"
+validate_swift_format_result() {
+    local lint_status="$1"
+    local diagnostics_file="$2"
+    local diagnostic_count=0
+    local allowlisted_count=0
 
-diagnostics_file="$(mktemp "${TMPDIR:-/tmp}/forgebase-format-diagnostics.XXXXXX")"
-trap 'rm -f "${diagnostics_file}"' EXIT
+    while IFS= read -r diagnostic; do
+        [[ -z "${diagnostic}" ]] && continue
+        diagnostic_count=$((diagnostic_count + 1))
+        if [[ "${diagnostic}" == "${known_diagnostic}" ]]; then
+            allowlisted_count=$((allowlisted_count + 1))
+        fi
+    done < "${diagnostics_file}"
 
-set +e
-xcrun swift-format lint \
-    --strict \
-    --configuration .swift-format \
-    --recursive \
-    Package.swift Sources Tests \
-    2>&1 | tee "${diagnostics_file}"
-lint_status=${PIPESTATUS[0]}
-set -e
-
-unexpected_diagnostic=false
-while IFS= read -r diagnostic; do
-    [[ -z "${diagnostic}" ]] && continue
-    if [[ "${diagnostic}" == "${known_diagnostic}" ]]; then
-        echo "Accepted canonical-main lint baseline: NeverForceUnwrap at PacketBuffer.swift:31"
-    else
-        unexpected_diagnostic=true
+    if [[ "${lint_status}" -eq 0 ]]; then
+        if [[ "${diagnostic_count}" -eq 0 ]]; then
+            echo "swift-format strict lint passed with no diagnostics."
+            return 0
+        fi
+        echo "error: swift-format exited successfully but emitted diagnostics" >&2
+        return 1
     fi
-done < "${diagnostics_file}"
 
-if [[ "${unexpected_diagnostic}" == true ]]; then
-    echo "error: swift-format reported an unexpected diagnostic" >&2
-    exit 1
-fi
+    if [[ "${diagnostic_count}" -eq 1 && "${allowlisted_count}" -eq 1 ]]; then
+        echo "Accepted canonical-main lint baseline: NeverForceUnwrap at PacketBuffer.swift:31"
+        echo "swift-format strict lint passed with exactly one allowlisted diagnostic."
+        return 0
+    fi
 
-if [[ "${lint_status}" -ne 0 ]]; then
-    echo "swift-format strict lint passed with only the documented baseline diagnostic."
-else
-    echo "swift-format strict lint passed with no diagnostics."
+    echo "error: nonzero swift-format exit requires exactly one allowlisted diagnostic" >&2
+    return 1
+}
+
+main() {
+    cd "${repository_root}"
+
+    local diagnostics_file
+    diagnostics_file="$(mktemp "${TMPDIR:-/tmp}/forgebase-format-diagnostics.XXXXXX")"
+
+    set +e
+    xcrun swift-format lint \
+        --strict \
+        --configuration .swift-format \
+        --recursive \
+        Package.swift Sources Tests \
+        2>&1 | tee "${diagnostics_file}"
+    local lint_status=${PIPESTATUS[0]}
+    set -e
+
+    local validation_status=0
+    validate_swift_format_result "${lint_status}" "${diagnostics_file}" || validation_status=$?
+    rm -f "${diagnostics_file}"
+    return "${validation_status}"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
 fi

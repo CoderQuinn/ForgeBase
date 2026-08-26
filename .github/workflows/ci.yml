@@ -42,7 +42,9 @@ jobs:
           swift package resolve
 
       - name: Lint Swift formatting
-        run: ./Scripts/ci/check-swift-format.sh
+        run: |
+          ./Scripts/ci/test-swift-format-ratchet.sh
+          ./Scripts/ci/check-swift-format.sh
 
       - name: Build and test Debug
         run: |
