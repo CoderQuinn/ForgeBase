@@ -1,10 +1,17 @@
 import Foundation
+import ForgeBaseC
 import Network
 import XCTest
 
 @testable import ForgeBase
 
 final class ForgeBaseTests: XCTestCase {
+    func testForgeBaseCModuleImports() {
+        // Importing ForgeBaseC is the regression check: incompatible public
+        // headers fail while this test target is compiled.
+        XCTAssertTrue(true)
+    }
+
     func testParseDottedDecimal_valid() {
         let ip = FBIPv4Parse.parseDottedDecimal("8.8.8.8")
         XCTAssertNotNil(ip)
@@ -85,6 +92,55 @@ final class ForgeBaseTests: XCTestCase {
         XCTAssertEqual(slice?.readableBytes, 3)
         XCTAssertEqual(slice?.loadUInt16(at: 0), 0x0203)
         XCTAssertEqual(slice?.materialize(), Data([0x02, 0x03, 0x04]))
+    }
+
+    func testPacketSliceConstructorValidatesRangeWithoutOverflow() {
+        XCTAssertTrue(
+            FBDataSlicePacketBuffer.hasValidRange(
+                dataCount: 4,
+                start: 0,
+                length: 4
+            )
+        )
+        XCTAssertTrue(
+            FBDataSlicePacketBuffer.hasValidRange(
+                dataCount: 4,
+                start: 4,
+                length: 0
+            )
+        )
+        XCTAssertFalse(
+            FBDataSlicePacketBuffer.hasValidRange(
+                dataCount: 4,
+                start: -1,
+                length: 1
+            )
+        )
+        XCTAssertFalse(
+            FBDataSlicePacketBuffer.hasValidRange(
+                dataCount: 4,
+                start: 1,
+                length: Int.max
+            )
+        )
+        XCTAssertFalse(
+            FBDataSlicePacketBuffer.hasValidRange(
+                dataCount: 4,
+                start: Int.max,
+                length: 0
+            )
+        )
+    }
+
+    func testPacketSliceMaterializesNonZeroBasedData() {
+        let storage = Data([0x00, 0x01, 0x02, 0x03])
+        let nonZeroBasedData = storage[1...]
+        XCTAssertEqual(nonZeroBasedData.startIndex, 1)
+
+        let buffer = FBDataPacketBuffer(nonZeroBasedData)
+        let slice = buffer.slice(from: 0, length: 2)
+
+        XCTAssertEqual(slice?.materialize(), Data([0x01, 0x02]))
     }
 
     func testPacketBufferWriter() {
