@@ -1,4 +1,9 @@
-## ForgeBase
+# ForgeBase
+
+<p align="center">
+  <strong>English</strong> |
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
 
 Lightweight foundations shared across Forge modules: low-level utilities,
 deterministic algorithms, and network-friendly value types.
