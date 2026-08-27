@@ -5,7 +5,6 @@
 //  Created by MagicianQuinn on 2025/12/19.
 //
 
-import ForgeBase
 import Network
 
 public enum IPVersion: UInt8 {
