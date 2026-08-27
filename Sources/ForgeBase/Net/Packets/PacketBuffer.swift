@@ -34,6 +34,14 @@ private func loadUnaligned<T>(
     }
 }
 
+/// Validates a half-open range without evaluating `offset + length`, which
+/// could overflow for untrusted integer inputs.
+@inline(__always)
+private func hasValidPacketRange(offset: Int, length: Int, limit: Int) -> Bool {
+    guard offset >= 0, length >= 0, offset <= limit else { return false }
+    return length <= limit - offset
+}
+
 /// Backing storage: whole Data
 public struct FBDataPacketBuffer: FBPacketBuffer {
     public let data: Data
@@ -42,24 +50,24 @@ public struct FBDataPacketBuffer: FBPacketBuffer {
     public var readableBytes: Int { data.count }
 
     public func loadUInt8(at offset: Int) -> UInt8? {
-        guard offset >= 0, offset + 1 <= data.count else { return nil }
+        guard hasValidPacketRange(offset: offset, length: 1, limit: data.count) else { return nil }
         return loadUnaligned(UInt8.self, from: data, at: offset)
     }
 
     public func loadUInt16(at offset: Int) -> UInt16? {
-        guard offset >= 0, offset + 2 <= data.count else { return nil }
+        guard hasValidPacketRange(offset: offset, length: 2, limit: data.count) else { return nil }
         let v: UInt16 = loadUnaligned(UInt16.self, from: data, at: offset)
         return UInt16(bigEndian: v)
     }
 
     public func loadUInt32(at offset: Int) -> UInt32? {
-        guard offset >= 0, offset + 4 <= data.count else { return nil }
+        guard hasValidPacketRange(offset: offset, length: 4, limit: data.count) else { return nil }
         let v: UInt32 = loadUnaligned(UInt32.self, from: data, at: offset)
         return UInt32(bigEndian: v)
     }
 
     public func slice(from offset: Int, length: Int) -> FBPacketBuffer? {
-        guard offset >= 0, length >= 0, offset + length <= data.count else { return nil }
+        guard hasValidPacketRange(offset: offset, length: length, limit: data.count) else { return nil }
         return FBDataSlicePacketBuffer(data: data, start: offset, length: length)
     }
 
@@ -96,27 +104,27 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
     private func absolute(_ offset: Int) -> Int { start + offset }
 
     public func loadUInt8(at offset: Int) -> UInt8? {
-        guard offset >= 0, offset + 1 <= length else { return nil }
+        guard hasValidPacketRange(offset: offset, length: 1, limit: length) else { return nil }
         let abs = absolute(offset)
         return loadUnaligned(UInt8.self, from: data, at: abs)
     }
 
     public func loadUInt16(at offset: Int) -> UInt16? {
-        guard offset >= 0, offset + 2 <= length else { return nil }
+        guard hasValidPacketRange(offset: offset, length: 2, limit: length) else { return nil }
         let abs = absolute(offset)
         let v: UInt16 = loadUnaligned(UInt16.self, from: data, at: abs)
         return UInt16(bigEndian: v)
     }
 
     public func loadUInt32(at offset: Int) -> UInt32? {
-        guard offset >= 0, offset + 4 <= length else { return nil }
+        guard hasValidPacketRange(offset: offset, length: 4, limit: length) else { return nil }
         let abs = absolute(offset)
         let v: UInt32 = loadUnaligned(UInt32.self, from: data, at: abs)
         return UInt32(bigEndian: v)
     }
 
     public func slice(from offset: Int, length: Int) -> FBPacketBuffer? {
-        guard offset >= 0, length >= 0, offset + length <= self.length else { return nil }
+        guard hasValidPacketRange(offset: offset, length: length, limit: self.length) else { return nil }
         return FBDataSlicePacketBuffer(data: data, start: start + offset, length: length)
     }
 
@@ -207,7 +215,10 @@ public struct FBPacketBufferWriter {
 
     @inline(__always)
     public mutating func fillUInt16(at offset: Int, value: UInt16) {
-        precondition(offset >= 0 && offset + 2 <= data.count, "Invalid offset for fillUInt16")
+        precondition(
+            hasValidPacketRange(offset: offset, length: 2, limit: data.count),
+            "Invalid offset for fillUInt16"
+        )
         data[offset] = UInt8((value >> 8) & 0xFF)
         data[offset + 1] = UInt8(value & 0xFF)
     }
