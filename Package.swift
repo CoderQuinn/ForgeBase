@@ -29,7 +29,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ForgeBaseTests",
-            dependencies: ["ForgeBase"],
+            dependencies: ["ForgeBase", "ForgeBaseC"],
             path: "Tests/ForgeBaseTests"
         ),
     ]
