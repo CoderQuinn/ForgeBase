@@ -72,7 +72,19 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
     public let start: Int
     public let length: Int
 
+    @inline(__always)
+    static func hasValidRange(dataCount: Int, start: Int, length: Int) -> Bool {
+        guard dataCount >= 0, start >= 0, length >= 0, start <= dataCount else {
+            return false
+        }
+        return length <= dataCount - start
+    }
+
     public init(data: Data, start: Int, length: Int) {
+        precondition(
+            Self.hasValidRange(dataCount: data.count, start: start, length: length),
+            "Packet buffer slice is outside the backing Data"
+        )
         self.data = data
         self.start = start
         self.length = length
@@ -110,7 +122,9 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
 
     /// Materialize into a standalone Data (copy)
     public func materialize() -> Data {
-        data.subdata(in: start..<start + length)
+        let lowerBound = data.index(data.startIndex, offsetBy: start)
+        let upperBound = data.index(lowerBound, offsetBy: length)
+        return data.subdata(in: lowerBound..<upperBound)
     }
 }
 

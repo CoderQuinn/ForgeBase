@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Fixed
+- Restored Swift importability of the `ForgeBaseC` product by removing an unused C++ header from its public C umbrella
+- Added overflow-safe invariant validation to the public `FBDataSlicePacketBuffer` initializer
+- Fixed packet slice materialization for `Data` values whose `startIndex` is not zero
+
 ## [0.2.0] - 2026-01-14
 ### Added
 - IPv4 value type (`FBIPv4`) with explicit network-byte-order semantics
