@@ -96,6 +96,8 @@ if let ipView = FBIPPacketView(buffer: FBDataPacketBuffer(packet)),
 
 `FBPacketBuffer` 是一个遵循 `Sendable` 的只读值语义合同。实现必须对负数、整数溢出或越界的读取与切片返回 `nil`。`slice` 可以共享不可变的写时复制存储；`materialize()` 必须返回当前可读窗口独立持有的 `Data` 快照。自定义缓冲区需要自行实现 `materialize()`；ForgeBase 不会再根据具体实现类型进行运行时分支。
 
+两个基于 `Data` 的具体缓冲区按照可读字节内容实现 `Hashable`。对于 slice，窗口之外的 backing 字节及窗口在 backing storage 中的偏移不会参与相等判断或哈希，哈希复杂度为 O(n)。`FBPacketBuffer` existential、packet view 和 writer 刻意不实现 `Hashable`；需要与具体实现无关的 key 时，调用方应先显式 `materialize()` 为 `Data` 快照。
+
 `FBIPPacketView.protocolNumberRaw` 会保留 IPv4 头部中真实的协议字节，`protocolNumber` 只用于便捷分类。UDP/IPv4 构造在负载过大或请求尚未支持的 checksum 模式时，会抛出结构化的 `FBUDPIPPacketBuilderError`，不再崩溃，也不会静默生成零 checksum 来伪装成功。
 
 ### 开发

@@ -103,6 +103,13 @@ an independently owned `Data` snapshot of the readable window. Custom buffer
 implementations provide their own `materialize()` witness; ForgeBase never
 switches on concrete conformer types.
 
+The two concrete `Data`-backed buffers are `Hashable` by readable byte content.
+For a slice, backing bytes outside its readable window and its backing offset do
+not participate in equality or hashing. Hashing is O(n). The
+`FBPacketBuffer` existential, packet views, and writers deliberately do not
+conform to `Hashable`; callers that need representation-neutral keys should
+materialize a `Data` snapshot explicitly.
+
 `FBIPPacketView.protocolNumberRaw` preserves the exact IPv4 protocol byte;
 `protocolNumber` is only a convenience classification. UDP/IPv4 construction
 throws a structured `FBUDPIPPacketBuilderError` for oversized payloads or a
