@@ -161,12 +161,12 @@ final class ForgeBaseTests: XCTestCase {
         XCTAssertEqual(writer.position, expected.count)
     }
 
-    func testUDPIPv4BuildAndParse() {
+    func testUDPIPv4BuildAndParse() throws {
         let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
         let srcIP = IPv4Address("10.0.0.1")!
         let dstIP = IPv4Address("10.0.0.2")!
 
-        let packet = FBUDPIPPacketBuilder.buildUDPIPv4(
+        let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
             srcIP: srcIP,
             dstIP: dstIP,
             srcPort: 12345,

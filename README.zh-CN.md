@@ -73,7 +73,7 @@ if let nwAddress {
 import Network
 
 let payload = Data([0xDE, 0xAD])
-let packet = FBUDPIPPacketBuilder.buildUDPIPv4(
+let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
     srcIP: IPv4Address("10.0.0.1")!,
     dstIP: IPv4Address("10.0.0.2")!,
     srcPort: 12345,
@@ -95,6 +95,8 @@ if let ipView = FBIPPacketView(buffer: FBDataPacketBuffer(packet)),
 ### 缓冲区所有权与并发
 
 `FBPacketBuffer` 是一个遵循 `Sendable` 的只读值语义合同。实现必须对负数、整数溢出或越界的读取与切片返回 `nil`。`slice` 可以共享不可变的写时复制存储；`materialize()` 必须返回当前可读窗口独立持有的 `Data` 快照。自定义缓冲区需要自行实现 `materialize()`；ForgeBase 不会再根据具体实现类型进行运行时分支。
+
+`FBIPPacketView.protocolNumberRaw` 会保留 IPv4 头部中真实的协议字节，`protocolNumber` 只用于便捷分类。UDP/IPv4 构造在负载过大或请求尚未支持的 checksum 模式时，会抛出结构化的 `FBUDPIPPacketBuilderError`，不再崩溃，也不会静默生成零 checksum 来伪装成功。
 
 ### 开发
 

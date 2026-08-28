@@ -26,6 +26,10 @@ public struct FBIPPacketView: Sendable {
     public let headerLength: Int
     public let totalLength: Int
 
+    /// Lossless IPv4 protocol number from the packet header.
+    public let protocolNumberRaw: UInt8
+
+    /// Convenience classification. Use `protocolNumberRaw` for unknown values.
     public let protocolNumber: TransportProtocol
     public let fragmented: Bool
 
@@ -68,6 +72,7 @@ public struct FBIPPacketView: Sendable {
         case 17: proto = .udp
         default: proto = .other
         }
+        protocolNumberRaw = protoRaw
         protocolNumber = proto
 
         guard let src = buffer.loadUInt32(at: 12),
