@@ -5,8 +5,8 @@ import XCTest
 @testable import ForgeBase
 
 final class UDPIPPacketBuilderBoundaryTests: XCTestCase {
-    func testEmptyUDPPacketLayoutUsesNetworkByteOrder() {
-        let packet = FBUDPIPPacketBuilder.buildUDPIPv4(
+    func testEmptyUDPPacketLayoutUsesNetworkByteOrder() throws {
+        let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
             srcIP: IPv4Address("1.2.3.4")!,
             dstIP: IPv4Address("203.0.113.255")!,
             srcPort: 0x1234,
@@ -30,9 +30,9 @@ final class UDPIPPacketBuilderBoundaryTests: XCTestCase {
         XCTAssertEqual(ipv4HeaderChecksum(packet), 0)
     }
 
-    func testOddPayloadBuildsParseablePacketWithValidIPChecksum() {
+    func testOddPayloadBuildsParseablePacketWithValidIPChecksum() throws {
         let payload = Data([0x10, 0x20, 0x30, 0x40, 0x50])
-        let packet = FBUDPIPPacketBuilder.buildUDPIPv4(
+        let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
             srcIP: IPv4Address("10.0.0.1")!,
             dstIP: IPv4Address("10.0.0.2")!,
             srcPort: 65_535,
@@ -51,10 +51,10 @@ final class UDPIPPacketBuilderBoundaryTests: XCTestCase {
         XCTAssertEqual(ipv4HeaderChecksum(packet), 0)
     }
 
-    func testMaximumIPv4UDPPayloadFitsSixteenBitLengths() {
-        let maximumPayloadLength = 65_507
+    func testMaximumIPv4UDPPayloadFitsSixteenBitLengths() throws {
+        let maximumPayloadLength = FBUDPIPPacketBuilder.maximumIPv4UDPPayloadLength
         let payload = Data(repeating: 0xA5, count: maximumPayloadLength)
-        let packet = FBUDPIPPacketBuilder.buildUDPIPv4(
+        let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
             srcIP: IPv4Address("192.0.2.1")!,
             dstIP: IPv4Address("198.51.100.1")!,
             srcPort: 1,
@@ -69,6 +69,44 @@ final class UDPIPPacketBuilderBoundaryTests: XCTestCase {
         XCTAssertEqual(packet[28], 0xA5)
         XCTAssertEqual(packet[packet.count - 1], 0xA5)
         XCTAssertEqual(ipv4HeaderChecksum(packet), 0)
+    }
+
+    func testOversizedPayloadReturnsStructuredError() {
+        let actual = FBUDPIPPacketBuilder.maximumIPv4UDPPayloadLength + 1
+        let payload = Data(repeating: 0xA5, count: actual)
+
+        XCTAssertThrowsError(
+            try FBUDPIPPacketBuilder.buildUDPIPv4(
+                srcIP: IPv4Address("192.0.2.1")!,
+                dstIP: IPv4Address("198.51.100.1")!,
+                srcPort: 1,
+                dstPort: 2,
+                payload: payload
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? FBUDPIPPacketBuilderError,
+                .payloadTooLarge(actual: actual, maximum: 65_507)
+            )
+        }
+    }
+
+    func testUnsupportedUDPChecksumReturnsStructuredError() {
+        XCTAssertThrowsError(
+            try FBUDPIPPacketBuilder.buildUDPIPv4(
+                srcIP: IPv4Address("192.0.2.1")!,
+                dstIP: IPv4Address("198.51.100.1")!,
+                srcPort: 1,
+                dstPort: 2,
+                payload: Data(),
+                udpChecksumEnabled: true
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? FBUDPIPPacketBuilderError,
+                .udpChecksumUnsupported
+            )
+        }
     }
 
     private func ipv4HeaderChecksum(_ packet: Data) -> UInt16 {

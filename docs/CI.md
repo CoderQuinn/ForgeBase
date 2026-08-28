@@ -49,20 +49,16 @@ counted. `ForgeBaseC` currently has no executable statements, so LLVM reports
 the instrumented `ForgeBase` Swift target only.
 
 Before the boundary test expansion, canonical `main` covered 345 of 448
-production lines (77.01%). The expanded suite covers 434 of 448 production
-lines (96.88%) with the local Apple Swift 6.3.3 toolchain. The 95.0% gate leaves
+production lines (77.01%). The current suite covers 451 of 460 production lines
+(98.04%) with the local Apple Swift 6.3.3 toolchain. The 95.0% gate leaves
 limited toolchain-attribution headroom without admitting the old baseline.
 
-## Deferred current-main regressions
+## Explicitly unsupported behavior
 
-The current suite does not encode known incorrect behavior as expected behavior:
-
-- `udpChecksumEnabled: true` still emits a zero UDP checksum, and a payload one
-  byte above the IPv4 maximum traps during `UInt16` conversion.
-
-UDP checksum and oversize-input behavior require separate functional changes;
-the suite tests disabled-checksum semantics and the maximum valid 65,507-byte
-UDP payload without locking the current failures in place.
+UDP checksum generation is not implemented. Requesting it throws
+`FBUDPIPPacketBuilderError.udpChecksumUnsupported`. Payloads above the maximum
+65,507 bytes throw a structured size error. The suite covers both failures and
+the maximum valid payload without relying on a process trap.
 
 ## Toolchain limitations
 

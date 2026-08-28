@@ -5,8 +5,8 @@ import XCTest
 @testable import ForgeBase
 
 final class PacketViewBoundaryTests: XCTestCase {
-    func testIPViewRejectsEmptyTruncatedAndMalformedHeaders() {
-        let valid = makePacket(payload: Data([0xAA]))
+    func testIPViewRejectsEmptyTruncatedAndMalformedHeaders() throws {
+        let valid = try makePacket(payload: Data([0xAA]))
 
         XCTAssertNil(FBIPPacketView(buffer: FBDataPacketBuffer(Data())))
         XCTAssertNil(FBIPPacketView(buffer: FBDataPacketBuffer(Data(valid.prefix(19)))))
@@ -37,9 +37,9 @@ final class PacketViewBoundaryTests: XCTestCase {
         XCTAssertNil(FBIPPacketView(buffer: FBDataPacketBuffer(totalLongerThanBuffer)))
     }
 
-    func testIPViewParsesOptionsAndLocatesUDPPayload() {
+    func testIPViewParsesOptionsAndLocatesUDPPayload() throws {
         let payload = Data([0xDE, 0xAD])
-        var packet = makePacket(payload: payload)
+        var packet = try makePacket(payload: payload)
         packet.insert(contentsOf: [0x01, 0x01, 0x00, 0x00], at: 20)
         packet[0] = 0x46
         packet.setUInt16BE(UInt16(packet.count), at: 2)
@@ -55,61 +55,64 @@ final class PacketViewBoundaryTests: XCTestCase {
         XCTAssertEqual(udp?.payload.materialize(), payload)
     }
 
-    func testIPViewClassifiesTransportProtocols() {
+    func testIPViewClassifiesTransportProtocols() throws {
         let expected: [(UInt8, TransportProtocol)] = [
+            (0, .other),
             (1, .icmp),
             (6, .tcp),
             (17, .udp),
+            (18, .other),
             (255, .other),
         ]
 
         for (rawValue, protocolNumber) in expected {
-            var packet = makePacket()
+            var packet = try makePacket()
             packet[9] = rawValue
             let view = FBIPPacketView(buffer: FBDataPacketBuffer(packet))
+            XCTAssertEqual(view?.protocolNumberRaw, rawValue)
             XCTAssertEqual(view?.protocolNumber, protocolNumber)
         }
     }
 
-    func testUDPViewRejectsFragmentsAndNonUDPProtocols() {
-        var moreFragments = makePacket()
+    func testUDPViewRejectsFragmentsAndNonUDPProtocols() throws {
+        var moreFragments = try makePacket()
         moreFragments.setUInt16BE(0x2000, at: 6)
         let mfView = FBIPPacketView(buffer: FBDataPacketBuffer(moreFragments))
         XCTAssertEqual(mfView?.fragmented, true)
         XCTAssertNil(mfView.flatMap(FBUDPView.init))
 
-        var fragmentOffset = makePacket()
+        var fragmentOffset = try makePacket()
         fragmentOffset.setUInt16BE(0x0001, at: 6)
         let offsetView = FBIPPacketView(buffer: FBDataPacketBuffer(fragmentOffset))
         XCTAssertEqual(offsetView?.fragmented, true)
         XCTAssertNil(offsetView.flatMap(FBUDPView.init))
 
-        var tcp = makePacket()
+        var tcp = try makePacket()
         tcp[9] = 6
         let tcpView = FBIPPacketView(buffer: FBDataPacketBuffer(tcp))
         XCTAssertNil(tcpView.flatMap(FBUDPView.init))
     }
 
-    func testUDPViewRejectsShortAndInconsistentLengths() {
-        var noUDPHeader = makePacket()
+    func testUDPViewRejectsShortAndInconsistentLengths() throws {
+        var noUDPHeader = try makePacket()
         noUDPHeader.setUInt16BE(27, at: 2)
         let noHeaderView = FBIPPacketView(buffer: FBDataPacketBuffer(noUDPHeader))
         XCTAssertEqual(noHeaderView?.payloadLength, 7)
         XCTAssertNil(noHeaderView.flatMap(FBUDPView.init))
 
-        var lengthBelowHeader = makePacket()
+        var lengthBelowHeader = try makePacket()
         lengthBelowHeader.setUInt16BE(7, at: 24)
         let belowHeaderView = FBIPPacketView(buffer: FBDataPacketBuffer(lengthBelowHeader))
         XCTAssertNil(belowHeaderView.flatMap(FBUDPView.init))
 
-        var lengthBeyondIPPacket = makePacket()
+        var lengthBeyondIPPacket = try makePacket()
         lengthBeyondIPPacket.setUInt16BE(0xFFFF, at: 24)
         let beyondView = FBIPPacketView(buffer: FBDataPacketBuffer(lengthBeyondIPPacket))
         XCTAssertNil(beyondView.flatMap(FBUDPView.init))
     }
 
-    func testUDPViewAcceptsEmptyPayload() {
-        let packet = makePacket(payload: Data())
+    func testUDPViewAcceptsEmptyPayload() throws {
+        let packet = try makePacket(payload: Data())
         let ip = FBIPPacketView(buffer: FBDataPacketBuffer(packet))
         let udp = ip.flatMap(FBUDPView.init)
 
@@ -118,8 +121,8 @@ final class PacketViewBoundaryTests: XCTestCase {
         XCTAssertEqual(udp?.payload.materialize(), Data())
     }
 
-    private func makePacket(payload: Data = Data([0x01, 0x02])) -> Data {
-        FBUDPIPPacketBuilder.buildUDPIPv4(
+    private func makePacket(payload: Data = Data([0x01, 0x02])) throws -> Data {
+        try FBUDPIPPacketBuilder.buildUDPIPv4(
             srcIP: IPv4Address("192.0.2.1")!,
             dstIP: IPv4Address("198.51.100.2")!,
             srcPort: 12_345,

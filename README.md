@@ -73,7 +73,7 @@ Build UDP/IPv4 packets and parse them back into views:
 import Network
 
 let payload = Data([0xDE, 0xAD])
-let packet = FBUDPIPPacketBuilder.buildUDPIPv4(
+let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
     srcIP: IPv4Address("10.0.0.1")!,
     dstIP: IPv4Address("10.0.0.2")!,
     srcPort: 12345,
@@ -102,6 +102,12 @@ return `nil` for negative, overflowing, or out-of-bounds reads and slices.
 an independently owned `Data` snapshot of the readable window. Custom buffer
 implementations provide their own `materialize()` witness; ForgeBase never
 switches on concrete conformer types.
+
+`FBIPPacketView.protocolNumberRaw` preserves the exact IPv4 protocol byte;
+`protocolNumber` is only a convenience classification. UDP/IPv4 construction
+throws a structured `FBUDPIPPacketBuilderError` for oversized payloads or a
+requested checksum mode that is not yet supported, rather than trapping or
+silently emitting a zero checksum.
 
 ### Development
 

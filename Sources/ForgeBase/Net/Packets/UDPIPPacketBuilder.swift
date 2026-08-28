@@ -8,7 +8,21 @@
 import Foundation
 import Network
 
+public enum FBUDPIPPacketBuilderError: Error, Equatable, Sendable {
+    case payloadTooLarge(actual: Int, maximum: Int)
+    case udpChecksumUnsupported
+}
+
 public enum FBUDPIPPacketBuilder {
+    /// Maximum payload that fits in one IPv4 packet with 20-byte IPv4 and
+    /// 8-byte UDP headers.
+    public static let maximumIPv4UDPPayloadLength = Int(UInt16.max) - 20 - 8
+
+    /// Builds one unfragmented UDP/IPv4 packet.
+    ///
+    /// - Throws: `FBUDPIPPacketBuilderError.payloadTooLarge` when the payload
+    ///   cannot fit in one IPv4 packet, or `.udpChecksumUnsupported` when UDP
+    ///   checksum generation is requested.
     public static func buildUDPIPv4(
         srcIP: IPv4Address,
         dstIP: IPv4Address,
@@ -17,7 +31,17 @@ public enum FBUDPIPPacketBuilder {
         payload: Data,
         ttl: UInt8 = 64,
         udpChecksumEnabled: Bool = false
-    ) -> Data {
+    ) throws -> Data {
+        guard payload.count <= maximumIPv4UDPPayloadLength else {
+            throw FBUDPIPPacketBuilderError.payloadTooLarge(
+                actual: payload.count,
+                maximum: maximumIPv4UDPPayloadLength
+            )
+        }
+        guard !udpChecksumEnabled else {
+            throw FBUDPIPPacketBuilderError.udpChecksumUnsupported
+        }
+
         // ---- UDP header (8 bytes) ----
         // srcPort(2) dstPort(2) length(2) checksum(2)
         let udpLen = UInt16(8 + payload.count)
@@ -29,14 +53,8 @@ public enum FBUDPIPPacketBuilder {
         udp.appendUInt16BE(dstPort)
         udp.appendUInt16BE(udpLen)
 
-        // UDP checksum is set to 0 (valid for IPv4).
-        // Enabled only when explicitly required.
-        if udpChecksumEnabled {
-            // TODO: compute UDP checksum with pseudo-header
-            udp.appendUInt16BE(0)
-        } else {
-            udp.appendUInt16BE(0)
-        }
+        // A zero UDP checksum is valid for IPv4.
+        udp.appendUInt16BE(0)
 
         udp.append(payload)
 
