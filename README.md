@@ -23,7 +23,7 @@ Add ForgeBase to your package dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/CoderQuinn/ForgeBase.git", from: "0.2.0"),
+    .package(url: "https://github.com/CoderQuinn/ForgeBase.git", exact: "0.3.0"),
 ]
 ```
 
@@ -121,3 +121,4 @@ silently emitting a zero checksum.
 - Swift 5.9+
 - Tests live under `Tests/ForgeBaseTests` (IPv4 parsing, CIDR utilities, packet buffers, UDP/IPv4 build/parse)
 - CI and the locally reproducible coverage gate are documented in [`docs/CI.md`](docs/CI.md)
+- The pre-1.0 compatibility and release contract is documented in [`docs/VERSIONING.md`](docs/VERSIONING.md)

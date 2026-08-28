@@ -23,7 +23,7 @@ ForgeBase 为 Forge 系列模块提供轻量级基础能力，包括底层工具
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/CoderQuinn/ForgeBase.git", from: "0.2.0"),
+    .package(url: "https://github.com/CoderQuinn/ForgeBase.git", exact: "0.3.0"),
 ]
 ```
 
@@ -105,3 +105,4 @@ if let ipView = FBIPPacketView(buffer: FBDataPacketBuffer(packet)),
 - Swift 5.9+
 - 测试位于 `Tests/ForgeBaseTests`，覆盖 IPv4 解析、CIDR 工具、数据包缓冲区以及 UDP/IPv4 构建与解析
 - CI 和本地可复现的覆盖率门禁参见 [`docs/CI.md`](docs/CI.md)
+- 1.0 前的兼容性与发布约定参见 [`docs/VERSIONING.md`](docs/VERSIONING.md)
