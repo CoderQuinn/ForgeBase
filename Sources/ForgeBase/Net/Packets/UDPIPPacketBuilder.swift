@@ -8,7 +8,7 @@
 import Foundation
 import Network
 
-public enum FBUDPIPPacketBuilderError: Error, Equatable, Sendable {
+public enum FBUDPIPPacketBuilderError: Error, Hashable, Sendable {
     case payloadTooLarge(actual: Int, maximum: Int)
     case udpChecksumUnsupported
 }

@@ -49,8 +49,8 @@ counted. `ForgeBaseC` currently has no executable statements, so LLVM reports
 the instrumented `ForgeBase` Swift target only.
 
 Before the boundary test expansion, canonical `main` covered 345 of 448
-production lines (77.01%). The current suite covers 451 of 460 production lines
-(98.04%) with the local Apple Swift 6.3.3 toolchain. The 95.0% gate leaves
+production lines (77.01%). The current suite covers 458 of 467 production lines
+(98.07%) with the local Apple Swift 6.3.3 toolchain. The 95.0% gate leaves
 limited toolchain-attribution headroom without admitting the old baseline.
 
 ## Explicitly unsupported behavior

@@ -44,8 +44,9 @@ private func hasValidPacketRange(offset: Int, length: Int, limit: Int) -> Bool {
     return length <= limit - offset
 }
 
-/// Backing storage: whole Data
-public struct FBDataPacketBuffer: FBPacketBuffer {
+/// Backing storage: whole Data.
+/// Equality and hashing use the readable byte content.
+public struct FBDataPacketBuffer: FBPacketBuffer, Hashable {
     public let data: Data
     public init(_ data: Data) { self.data = data }
 
@@ -76,8 +77,10 @@ public struct FBDataPacketBuffer: FBPacketBuffer {
     public func materialize() -> Data { data }
 }
 
-/// Backing storage: Data + range (real view, no subdata copy)
-public struct FBDataSlicePacketBuffer: FBPacketBuffer {
+/// Backing storage: Data + range (real view, no subdata copy).
+/// Equality and hashing use only the logical readable window, not bytes outside
+/// that window or the window's location in the backing storage.
+public struct FBDataSlicePacketBuffer: FBPacketBuffer, Hashable {
     public let data: Data
     public let start: Int
     public let length: Int
@@ -135,6 +138,15 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
         let lowerBound = data.index(data.startIndex, offsetBy: start)
         let upperBound = data.index(lowerBound, offsetBy: length)
         return data.subdata(in: lowerBound..<upperBound)
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        guard lhs.length == rhs.length else { return false }
+        return lhs.materialize() == rhs.materialize()
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(materialize())
     }
 }
 
