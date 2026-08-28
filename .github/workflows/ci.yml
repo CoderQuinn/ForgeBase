@@ -43,20 +43,19 @@ jobs:
 
       - name: Lint Swift formatting
         run: |
-          ./Scripts/ci/test-swift-format-ratchet.sh
           ./Scripts/ci/check-swift-format.sh
 
       - name: Build and test Debug
         run: |
           swift package clean
-          swift build --configuration debug
-          swift test --configuration debug
+          swift build --configuration debug -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test --configuration debug -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
       - name: Build and test Release
         run: |
           swift package clean
-          swift build --configuration release
-          swift test --configuration release
+          swift build --configuration release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          swift test --configuration release -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
       - name: Run production coverage gate
         run: ./Scripts/ci/check-swift-coverage.sh

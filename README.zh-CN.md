@@ -92,6 +92,10 @@ if let ipView = FBIPPacketView(buffer: FBDataPacketBuffer(packet)),
 
 所有公开 IPv4 API 均使用**网络字节序（大端序）**。公开接口不得暴露主机字节序；需要显示或桥接时，请使用 `dottedDecimalString` 或 Network.framework 辅助接口。
 
+### 缓冲区所有权与并发
+
+`FBPacketBuffer` 是一个遵循 `Sendable` 的只读值语义合同。实现必须对负数、整数溢出或越界的读取与切片返回 `nil`。`slice` 可以共享不可变的写时复制存储；`materialize()` 必须返回当前可读窗口独立持有的 `Data` 快照。自定义缓冲区需要自行实现 `materialize()`；ForgeBase 不会再根据具体实现类型进行运行时分支。
+
 ### 开发
 
 - Swift 5.9+

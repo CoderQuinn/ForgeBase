@@ -7,19 +7,19 @@
 
 import Network
 
-public enum IPVersion: UInt8 {
+public enum IPVersion: UInt8, Hashable, Sendable {
     case iPv4 = 4
     case iPv6 = 6
 }
 
-public enum TransportProtocol: UInt8 {
+public enum TransportProtocol: UInt8, Hashable, Sendable {
     case icmp = 1
     case tcp = 6
     case udp = 17
     case other
 }
 
-public struct FBIPPacketView {
+public struct FBIPPacketView: Sendable {
     public let buffer: FBPacketBuffer
 
     public let version: IPVersion
@@ -87,7 +87,7 @@ public struct FBIPPacketView {
     }
 }
 
-public struct FBUDPView {
+public struct FBUDPView: Sendable {
     public let srcPort: UInt16
     public let dstPort: UInt16
     public let payload: FBPacketBuffer
