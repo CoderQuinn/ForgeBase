@@ -94,6 +94,15 @@ All public IPv4 APIs use **network byte order (big-endian)**. Host byte order
 must not surface in public signatures; use `dottedDecimalString` or the
 Network.framework helpers for presentation and bridging.
 
+### Buffer Ownership and Concurrency
+
+`FBPacketBuffer` is a `Sendable` read-only value contract. Implementations must
+return `nil` for negative, overflowing, or out-of-bounds reads and slices.
+`slice` may share immutable copy-on-write storage, while `materialize()` returns
+an independently owned `Data` snapshot of the readable window. Custom buffer
+implementations provide their own `materialize()` witness; ForgeBase never
+switches on concrete conformer types.
+
 ### Development
 
 - Swift 5.9+

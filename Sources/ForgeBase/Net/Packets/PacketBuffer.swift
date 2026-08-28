@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - FBPacketBuffer
 
-public protocol FBPacketBuffer {
+public protocol FBPacketBuffer: Sendable {
     var readableBytes: Int { get }
 
     func loadUInt8(at offset: Int) -> UInt8?
@@ -18,6 +18,9 @@ public protocol FBPacketBuffer {
 
     /// Returns a view (no copy if possible) of [offset, offset+length)
     func slice(from offset: Int, length: Int) -> FBPacketBuffer?
+
+    /// Returns an independently owned snapshot of the readable bytes.
+    func materialize() -> Data
 }
 
 @inline(__always)
@@ -26,11 +29,10 @@ private func loadUnaligned<T>(
     from data: Data,
     at offset: Int
 ) -> T {
-    assert(offset >= 0 && offset + MemoryLayout<T>.size <= data.count)
+    let width = MemoryLayout<T>.size
+    assert(offset >= 0 && offset <= data.count && width <= data.count - offset)
     return data.withUnsafeBytes {
-        $0.baseAddress!
-            .advanced(by: offset)
-            .loadUnaligned(as: T.self)
+        $0.loadUnaligned(fromByteOffset: offset, as: T.self)
     }
 }
 
@@ -136,23 +138,7 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer {
     }
 }
 
-/// FBPacketBuffer is sealed to FBDataPacketBuffer / FBDataSlicePacketBuffer.
-/// Adding new conforming types requires updating materialize().
-extension FBPacketBuffer {
-    /// IO boundary only. One unavoidable copy.
-    public func materialize() -> Data {
-        if let dataSlice = self as? FBDataSlicePacketBuffer {
-            return dataSlice.materialize()
-        }
-
-        if let data = self as? FBDataPacketBuffer {
-            return data.data
-        }
-        fatalError("Unknown FBPacketBuffer type")
-    }
-}
-
-public struct FBPacketBufferWriter {
+public struct FBPacketBufferWriter: Sendable {
     public private(set) var data: Data
     public private(set) var position: Int = 0
 
