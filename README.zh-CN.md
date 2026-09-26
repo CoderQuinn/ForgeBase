@@ -100,6 +100,8 @@ if let ipView = FBIPPacketView(buffer: FBDataPacketBuffer(packet)),
 
 `FBIPPacketView.protocolNumberRaw` 会保留 IPv4 头部中真实的协议字节，`protocolNumber` 只用于便捷分类。UDP/IPv4 构造在负载过大或请求尚未支持的 checksum 模式时，会抛出结构化的 `FBUDPIPPacketBuilderError`，不再崩溃，也不会静默生成零 checksum 来伪装成功。
 
+当 DNS 名称不是已验证的可信输入时，数据包构建器应调用 `try writer.writeDNSName(name)`。writer 会校验每个 label 和完整 wire encoding 的长度，接受根域名与单个绝对域名尾点，并在失败时保持原状态不变。兼容入口 `name(_:)` 对相同的非法输入返回 `false`。
+
 ### 开发
 
 - Swift 5.9+

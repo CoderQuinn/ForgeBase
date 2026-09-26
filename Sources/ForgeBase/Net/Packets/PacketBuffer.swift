@@ -10,6 +10,7 @@ import Foundation
 // MARK: - FBPacketBuffer
 
 public protocol FBPacketBuffer: Sendable {
+    /// Nonnegative size of the logical window returned by scoped byte access.
     var readableBytes: Int { get }
 
     func loadUInt8(at offset: Int) -> UInt8?
@@ -21,6 +22,26 @@ public protocol FBPacketBuffer: Sendable {
 
     /// Returns an independently owned snapshot of the readable bytes.
     func materialize() -> Data
+
+    /// Borrows the logical readable window for the synchronous closure only.
+    /// The pointer must not escape the closure. The default implementation
+    /// materializes a snapshot; contiguous implementations can avoid that copy.
+    /// Conformers must call the body exactly once with valid, stable storage
+    /// whose count equals `readableBytes` for the duration of the call.
+    func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result
+}
+
+extension FBPacketBuffer {
+    public func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result {
+        try materialize().withUnsafeBytes(body)
+    }
+}
+
+public enum FBPacketBufferWriterError: Error, Hashable, Sendable {
+    case emptyDNSLabel
+    case nonASCIIDNSLabel
+    case dnsLabelTooLong(actual: Int, maximum: Int)
+    case dnsNameTooLong(actual: Int, maximum: Int)
 }
 
 @inline(__always)
@@ -46,6 +67,8 @@ private func hasValidPacketRange(offset: Int, length: Int, limit: Int) -> Bool {
 
 /// Backing storage: whole Data.
 /// Equality and hashing use the readable byte content.
+/// Externally owned bytes (such as `Data(bytesNoCopy:)`) must remain valid and
+/// immutable for the buffer's lifetime; Data COW cannot freeze external writes.
 public struct FBDataPacketBuffer: FBPacketBuffer, Hashable {
     public let data: Data
     public init(_ data: Data) { self.data = data }
@@ -75,6 +98,10 @@ public struct FBDataPacketBuffer: FBPacketBuffer, Hashable {
     }
 
     public func materialize() -> Data { data }
+
+    public func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result {
+        try data.withUnsafeBytes(body)
+    }
 }
 
 /// Backing storage: Data + range (real view, no subdata copy).
@@ -142,11 +169,20 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer, Hashable {
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
         guard lhs.length == rhs.length else { return false }
-        return lhs.materialize() == rhs.materialize()
+        return lhs.withUnsafeReadableBytes { left in
+            rhs.withUnsafeReadableBytes { right in left.elementsEqual(right) }
+        }
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(materialize())
+        hasher.combine(length)
+        withUnsafeReadableBytes { hasher.combine(bytes: $0) }
+    }
+
+    public func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result {
+        try data.withUnsafeBytes { bytes in
+            try body(UnsafeRawBufferPointer(rebasing: bytes[start..<(start + length)]))
+        }
     }
 }
 
@@ -221,20 +257,70 @@ public struct FBPacketBufferWriter: Sendable {
         data[offset + 1] = UInt8(value & 0xFF)
     }
 
-    /// DNS QNAME writer (RFC 1035)
-    public mutating func name(_ name: String) {
-        // empty name => root
-        if name.isEmpty {
+    /// Writes one DNS QNAME in RFC 1035 wire format.
+    ///
+    /// The empty string and `.` both encode the root name. A single trailing
+    /// dot is accepted for an absolute name. Other empty labels, non-ASCII
+    /// presentation bytes, labels longer than 63 bytes, and names whose wire
+    /// encoding exceeds 255 bytes are rejected without mutating the writer.
+    public mutating func writeDNSName(_ name: String) throws {
+        if name.isEmpty || name == "." {
             writeUInt8(0)
             return
         }
 
-        for label in name.split(separator: ".") {
-            let bytes = label.utf8
-            precondition(bytes.count <= 63, "DNS label too long: \(label)")
-            writeUInt8(UInt8(bytes.count))
-            raw(bytes)
+        let absolute = name.last == "."
+        let presentation = absolute ? String(name.dropLast()) : name
+        let labels = presentation.split(
+            separator: ".",
+            omittingEmptySubsequences: false
+        )
+
+        var encoded = Data()
+        encoded.reserveCapacity(255)
+
+        for label in labels {
+            guard !label.isEmpty else {
+                throw FBPacketBufferWriterError.emptyDNSLabel
+            }
+
+            let bytes = Array(label.utf8)
+            guard bytes.allSatisfy({ $0 < 0x80 }) else {
+                throw FBPacketBufferWriterError.nonASCIIDNSLabel
+            }
+            guard bytes.count <= 63 else {
+                throw FBPacketBufferWriterError.dnsLabelTooLong(
+                    actual: bytes.count,
+                    maximum: 63
+                )
+            }
+
+            encoded.append(UInt8(bytes.count))
+            encoded.append(contentsOf: bytes)
         }
-        writeUInt8(0)  // terminator
+        encoded.append(0)
+
+        guard encoded.count <= 255 else {
+            throw FBPacketBufferWriterError.dnsNameTooLong(
+                actual: encoded.count,
+                maximum: 255
+            )
+        }
+
+        raw(encoded)
+    }
+
+    /// Compatibility entry point for existing packet builders.
+    ///
+    /// Returns `false` and leaves the writer unchanged when the presentation
+    /// name cannot be encoded as a valid DNS QNAME.
+    @discardableResult
+    public mutating func name(_ name: String) -> Bool {
+        do {
+            try writeDNSName(name)
+            return true
+        } catch {
+            return false
+        }
     }
 }

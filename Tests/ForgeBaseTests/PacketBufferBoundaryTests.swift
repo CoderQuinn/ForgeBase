@@ -68,13 +68,17 @@ final class PacketBufferBoundaryTests: XCTestCase {
         XCTAssertEqual(writer.position, 8)
     }
 
-    func testWriterEncodesRootAndAbsoluteDNSNames() {
+    func testWriterEncodesRootAndAbsoluteDNSNames() throws {
         var root = FBPacketBufferWriter()
-        root.name("")
+        XCTAssertTrue(root.name(""))
         XCTAssertEqual(root.data, Data([0]))
 
+        var absoluteRoot = FBPacketBufferWriter()
+        try absoluteRoot.writeDNSName(".")
+        XCTAssertEqual(absoluteRoot.data, Data([0]))
+
         var domain = FBPacketBufferWriter()
-        domain.name("www.example.com.")
+        XCTAssertTrue(domain.name("www.example.com."))
         XCTAssertEqual(
             domain.data,
             Data([
@@ -85,5 +89,69 @@ final class PacketBufferBoundaryTests: XCTestCase {
             ])
         )
         XCTAssertEqual(domain.position, domain.data.count)
+    }
+
+    func testWriterRejectsMalformedDNSNamesWithoutMutation() {
+        let invalidNames = [
+            ".example.com",
+            "example..com",
+            "example.com..",
+            "café.example",
+            String(repeating: "a", count: 64) + ".example",
+        ]
+
+        for invalidName in invalidNames {
+            var writer = FBPacketBufferWriter()
+            writer.raw([0xAA, 0xBB])
+
+            XCTAssertFalse(writer.name(invalidName), invalidName)
+            XCTAssertEqual(writer.data, Data([0xAA, 0xBB]), invalidName)
+            XCTAssertEqual(writer.position, 2, invalidName)
+        }
+    }
+
+    func testWriterEnforcesDNSWireLengthBoundary() throws {
+        let maximumName = [63, 63, 63, 61]
+            .map { String(repeating: "a", count: $0) }
+            .joined(separator: ".")
+        let oversizedName = [63, 63, 63, 62]
+            .map { String(repeating: "a", count: $0) }
+            .joined(separator: ".")
+
+        var maximumWriter = FBPacketBufferWriter()
+        try maximumWriter.writeDNSName(maximumName)
+        XCTAssertEqual(maximumWriter.data.count, 255)
+        XCTAssertEqual(maximumWriter.position, 255)
+
+        var oversizedWriter = FBPacketBufferWriter()
+        XCTAssertThrowsError(try oversizedWriter.writeDNSName(oversizedName)) { error in
+            XCTAssertEqual(
+                error as? FBPacketBufferWriterError,
+                .dnsNameTooLong(actual: 256, maximum: 255)
+            )
+        }
+        XCTAssertTrue(oversizedWriter.data.isEmpty)
+        XCTAssertEqual(oversizedWriter.position, 0)
+    }
+
+    func testWriterReportsDNSValidationFailures() {
+        var writer = FBPacketBufferWriter()
+
+        XCTAssertThrowsError(try writer.writeDNSName("a..b")) { error in
+            XCTAssertEqual(error as? FBPacketBufferWriterError, .emptyDNSLabel)
+        }
+        XCTAssertThrowsError(try writer.writeDNSName("café.example")) { error in
+            XCTAssertEqual(error as? FBPacketBufferWriterError, .nonASCIIDNSLabel)
+        }
+        XCTAssertThrowsError(
+            try writer.writeDNSName(String(repeating: "a", count: 64))
+        ) { error in
+            XCTAssertEqual(
+                error as? FBPacketBufferWriterError,
+                .dnsLabelTooLong(actual: 64, maximum: 63)
+            )
+        }
+        XCTAssertTrue(writer.data.isEmpty)
+        XCTAssertEqual(writer.position, 0)
     }
 }

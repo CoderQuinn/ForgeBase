@@ -116,6 +116,12 @@ throws a structured `FBUDPIPPacketBuilderError` for oversized payloads or a
 requested checksum mode that is not yet supported, rather than trapping or
 silently emitting a zero checksum.
 
+DNS packet builders should use `try writer.writeDNSName(name)` when the name is
+not already trusted. The writer validates label and full wire lengths, accepts
+the root and one trailing absolute-name dot, and leaves its state unchanged on
+failure. The compatibility `name(_:)` entry point returns `false` for the same
+invalid inputs.
+
 ### Development
 
 - Swift 5.9+
