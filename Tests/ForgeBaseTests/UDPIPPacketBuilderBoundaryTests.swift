@@ -119,4 +119,23 @@ final class UDPIPPacketBuilderBoundaryTests: XCTestCase {
         }
         return ~UInt16(sum & 0xFFFF)
     }
+
+    func testPayloadWindowsSurviveSingleBufferAssembly() throws {
+        for size in [0, 1, 2, 63, 512, 1472, 4096, 65_507] {
+            var payload = Data([255] + (0..<size).map { UInt8(truncatingIfNeeded: $0) })
+            payload.removeFirst()
+            let packet = try FBUDPIPPacketBuilder.buildUDPIPv4(
+                srcIP: IPv4Address("192.0.2.1")!, dstIP: IPv4Address("198.51.100.2")!,
+                srcPort: 0, dstPort: 65_535, payload: payload, ttl: 0
+            )
+            let buffer = FBDataPacketBuffer(packet)
+            XCTAssertEqual(packet.count, size + 28)
+            XCTAssertEqual(buffer.loadUInt16(at: 2), UInt16(size + 28))
+            XCTAssertEqual(buffer.loadUInt16(at: 24), UInt16(size + 8))
+            XCTAssertEqual(buffer.loadUInt16(at: 26), 0)
+            XCTAssertEqual(packet[8], 0)
+            XCTAssertEqual(Array(packet.dropFirst(28)), Array(payload))
+            XCTAssertEqual(ipv4HeaderChecksum(packet), 0)
+        }
+    }
 }

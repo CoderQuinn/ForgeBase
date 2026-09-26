@@ -10,6 +10,7 @@ import Foundation
 // MARK: - FBPacketBuffer
 
 public protocol FBPacketBuffer: Sendable {
+    /// Nonnegative size of the logical window returned by scoped byte access.
     var readableBytes: Int { get }
 
     func loadUInt8(at offset: Int) -> UInt8?
@@ -21,6 +22,19 @@ public protocol FBPacketBuffer: Sendable {
 
     /// Returns an independently owned snapshot of the readable bytes.
     func materialize() -> Data
+
+    /// Borrows the logical readable window for the synchronous closure only.
+    /// The pointer must not escape the closure. The default implementation
+    /// materializes a snapshot; contiguous implementations can avoid that copy.
+    /// Conformers must call the body exactly once with valid, stable storage
+    /// whose count equals `readableBytes` for the duration of the call.
+    func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result
+}
+
+extension FBPacketBuffer {
+    public func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result {
+        try materialize().withUnsafeBytes(body)
+    }
 }
 
 public enum FBPacketBufferWriterError: Error, Hashable, Sendable {
@@ -53,6 +67,8 @@ private func hasValidPacketRange(offset: Int, length: Int, limit: Int) -> Bool {
 
 /// Backing storage: whole Data.
 /// Equality and hashing use the readable byte content.
+/// Externally owned bytes (such as `Data(bytesNoCopy:)`) must remain valid and
+/// immutable for the buffer's lifetime; Data COW cannot freeze external writes.
 public struct FBDataPacketBuffer: FBPacketBuffer, Hashable {
     public let data: Data
     public init(_ data: Data) { self.data = data }
@@ -82,6 +98,10 @@ public struct FBDataPacketBuffer: FBPacketBuffer, Hashable {
     }
 
     public func materialize() -> Data { data }
+
+    public func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result {
+        try data.withUnsafeBytes(body)
+    }
 }
 
 /// Backing storage: Data + range (real view, no subdata copy).
@@ -149,11 +169,20 @@ public struct FBDataSlicePacketBuffer: FBPacketBuffer, Hashable {
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
         guard lhs.length == rhs.length else { return false }
-        return lhs.materialize() == rhs.materialize()
+        return lhs.withUnsafeReadableBytes { left in
+            rhs.withUnsafeReadableBytes { right in left.elementsEqual(right) }
+        }
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(materialize())
+        hasher.combine(length)
+        withUnsafeReadableBytes { hasher.combine(bytes: $0) }
+    }
+
+    public func withUnsafeReadableBytes<Result>(_ body: (UnsafeRawBufferPointer) throws -> Result) rethrows -> Result {
+        try data.withUnsafeBytes { bytes in
+            try body(UnsafeRawBufferPointer(rebasing: bytes[start..<(start + length)]))
+        }
     }
 }
 
