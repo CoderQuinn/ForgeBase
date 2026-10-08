@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Breaking
+
+- `FBPacketBufferWriter.name(_:)` now returns whether the DNS presentation name
+  was encoded. Existing statement-style calls remain source compatible, while
+  callers that accept untrusted names can handle validation failure explicitly.
+
+### Added
+
+- Added throwing `writeDNSName(_:)` and structured
+  `FBPacketBufferWriterError` cases for invalid DNS labels and wire lengths.
+
+### Fixed
+
+- DNS QNAME encoding now rejects empty interior labels, non-ASCII presentation
+  names, labels longer than 63 bytes, and wire encodings longer than 255 bytes
+  without trapping or partially mutating the packet writer.
+
 ## [0.3.0] - 2026-08-28
 
 ### Breaking

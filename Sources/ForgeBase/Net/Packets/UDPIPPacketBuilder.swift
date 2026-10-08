@@ -9,6 +9,8 @@ import Foundation
 import Network
 
 public enum FBUDPIPPacketBuilderError: Error, Hashable, Sendable {
+    case invalidPayloadLength(actual: Int)
+    case payloadLengthMismatch(declared: Int, actual: Int)
     case payloadTooLarge(actual: Int, maximum: Int)
     case udpChecksumUnsupported
 }
@@ -32,74 +34,87 @@ public enum FBUDPIPPacketBuilder {
         ttl: UInt8 = 64,
         udpChecksumEnabled: Bool = false
     ) throws -> Data {
-        guard payload.count <= maximumIPv4UDPPayloadLength else {
+        try buildUDPIPv4(
+            srcIP: srcIP, dstIP: dstIP, srcPort: srcPort, dstPort: dstPort,
+            payloadBuffer: FBDataPacketBuffer(payload), ttl: ttl, udpChecksumEnabled: udpChecksumEnabled
+        )
+    }
+
+    /// Builds from the buffer's logical window without first materializing it.
+    /// Legacy conformers may materialize in the default scoped-byte fallback.
+    /// The result owns a copy of the payload; no borrowed pointer escapes.
+    /// Validation order is declared length, checksum support, then borrowed length.
+    public static func buildUDPIPv4(
+        srcIP: IPv4Address,
+        dstIP: IPv4Address,
+        srcPort: UInt16,
+        dstPort: UInt16,
+        payloadBuffer: FBPacketBuffer,
+        ttl: UInt8 = 64,
+        udpChecksumEnabled: Bool = false
+    ) throws -> Data {
+        let length = payloadBuffer.readableBytes
+        guard length >= 0 else {
+            throw FBUDPIPPacketBuilderError.invalidPayloadLength(actual: length)
+        }
+        guard length <= maximumIPv4UDPPayloadLength else {
             throw FBUDPIPPacketBuilderError.payloadTooLarge(
-                actual: payload.count,
+                actual: length,
                 maximum: maximumIPv4UDPPayloadLength
             )
         }
         guard !udpChecksumEnabled else {
             throw FBUDPIPPacketBuilderError.udpChecksumUnsupported
         }
+        return try payloadBuffer.withUnsafeReadableBytes { payload in
+            guard payload.count == length else {
+                throw FBUDPIPPacketBuilderError.payloadLengthMismatch(declared: length, actual: payload.count)
+            }
+            return assembleUDPIPv4(
+                srcIP: srcIP, dstIP: dstIP, srcPort: srcPort, dstPort: dstPort, payload: payload, ttl: ttl
+            )
+        }
+    }
 
-        // ---- UDP header (8 bytes) ----
-        // srcPort(2) dstPort(2) length(2) checksum(2)
+    private static func assembleUDPIPv4(
+        srcIP: IPv4Address,
+        dstIP: IPv4Address,
+        srcPort: UInt16,
+        dstPort: UInt16,
+        payload: UnsafeRawBufferPointer,
+        ttl: UInt8
+    ) -> Data {
+        // Lengths were validated before entering the borrow. Write into one
+        // final-sized owned buffer; only the payload copy crosses ownership.
         let udpLen = UInt16(8 + payload.count)
-
-        var udp = Data()
-        udp.reserveCapacity(Int(udpLen))
-
-        udp.appendUInt16BE(srcPort)
-        udp.appendUInt16BE(dstPort)
-        udp.appendUInt16BE(udpLen)
-
-        // A zero UDP checksum is valid for IPv4.
-        udp.appendUInt16BE(0)
-
-        udp.append(payload)
-
-        // ---- IPv4 header (20 bytes, no options) ----
-        let totalLen = UInt16(20 + udp.count)
-
-        var ip = Data()
-        ip.reserveCapacity(20 + udp.count)
-
-        // Version(4) + IHL(4) => 0x45
-        ip.append(0x45)
-        // DSCP/ECN
-        ip.append(0)
-
-        ip.appendUInt16BE(totalLen)
-
-        // Identification
-        ip.appendUInt16BE(0)
-        // Flags/Fragment offset
-        ip.appendUInt16BE(0)
-
-        // TTL
-        ip.append(ttl)
-        // Protocol UDP = 17
-        ip.append(17)
-
-        // Header checksum (placeholder)
-        ip.appendUInt16BE(0)
-
-        // src/dst IP
-        ip.append(srcIP.rawValue)
-        ip.append(dstIP.rawValue)
-
-        // Compute IPv4 header checksum
-        let csum = ipv4HeaderChecksum(ipHeader20: ip)
-        ip.replaceSubrange(10..<12, with: [UInt8(csum >> 8), UInt8(csum & 0xFF)])
-
-        // payload
-        ip.append(udp)
-        return ip
+        let totalLen = 20 + Int(udpLen)
+        var packet = Data(count: totalLen)
+        packet.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) in
+            // Zero initialization supplies DSCP, ID, flags and checksum fields.
+            bytes[0] = 0x45
+            writeUInt16BE(UInt16(totalLen), into: bytes, at: 2)
+            bytes[8] = ttl
+            bytes[9] = 17
+            srcIP.rawValue.withUnsafeBytes {
+                UnsafeMutableRawBufferPointer(rebasing: bytes[12..<16]).copyMemory(from: $0)
+            }
+            dstIP.rawValue.withUnsafeBytes {
+                UnsafeMutableRawBufferPointer(rebasing: bytes[16..<20]).copyMemory(from: $0)
+            }
+            let checksum = ipv4HeaderChecksum(ipHeader20: UnsafeRawBufferPointer(rebasing: bytes[..<20]))
+            writeUInt16BE(checksum, into: bytes, at: 10)
+            writeUInt16BE(srcPort, into: bytes, at: 20)
+            writeUInt16BE(dstPort, into: bytes, at: 22)
+            writeUInt16BE(udpLen, into: bytes, at: 24)
+            // A zero UDP checksum is valid for IPv4. Empty buffers are valid.
+            UnsafeMutableRawBufferPointer(rebasing: bytes[28...]).copyMemory(from: payload)
+        }
+        return packet
     }
 
     // MARK: - IPv4 checksum
 
-    private static func ipv4HeaderChecksum(ipHeader20: Data) -> UInt16 {
+    private static func ipv4HeaderChecksum(ipHeader20: UnsafeRawBufferPointer) -> UInt16 {
         precondition(ipHeader20.count >= 20)
 
         var sum: UInt32 = 0
@@ -117,13 +132,8 @@ public enum FBUDPIPPacketBuilder {
 
         return ~UInt16(sum & 0xFFFF)
     }
-}
-
-// MARK: - Data helpers
-
-extension Data {
-    fileprivate mutating func appendUInt16BE(_ v: UInt16) {
-        append(UInt8((v >> 8) & 0xFF))
-        append(UInt8(v & 0xFF))
+    private static func writeUInt16BE(_ value: UInt16, into bytes: UnsafeMutableRawBufferPointer, at offset: Int) {
+        bytes[offset] = UInt8(value >> 8)
+        bytes[offset + 1] = UInt8(value & 0xFF)
     }
 }
