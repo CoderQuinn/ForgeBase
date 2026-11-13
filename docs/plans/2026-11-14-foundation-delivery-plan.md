@@ -34,4 +34,3 @@
 - [ ] Implement the smallest benchmark/result/consumer harness additions. Preserve validation precedence and lifetime semantics.
 - [ ] GREEN: Debug/Release, strict concurrency warnings-as-errors, existing format/coverage gate, focused harness tests, clean consumer exact lock. Audit first-party C coverage and changed executable lines as well as Swift. Record not_run rather than inventing benchmark data.
 - [ ] Commit scoped changes and full report; request coordinator's exclusive benchmark slot for a native Release smoke run. Keep native timing separate from coverage/sanitizers.
-
