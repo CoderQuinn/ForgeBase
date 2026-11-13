@@ -3,7 +3,7 @@
 import argparse
 import json
 import re
-import subprocess
+import subprocess  # nosec B404 - process argv is audited at each shell=False call below.
 import tempfile
 from pathlib import Path
 
@@ -49,14 +49,16 @@ def consumer(revision, root, expected_success):
 import PackageDescription
 let package = Package(name: "Probe", platforms: [.macOS(.v11)], dependencies: [.package(url: "''' + URL + '''", revision: "''' + revision + '''")], targets: [.executableTarget(name: "Probe", dependencies: [.product(name: "ForgeBase", package: "ForgeBase"), .product(name: "ForgeBaseC", package: "ForgeBase")])])
 ''')
-    completed = subprocess.run(['swift', 'run', '-c', 'release', '-Xswiftc', '-strict-concurrency=complete', '-Xswiftc', '-warnings-as-errors', 'Probe'], cwd=root, text=True, capture_output=True)
+    # All tool arguments are constants; the private consumer directory is cwd data.
+    completed = subprocess.run(['swift', 'run', '-c', 'release', '-Xswiftc', '-strict-concurrency=complete', '-Xswiftc', '-warnings-as-errors', 'Probe'], shell=False, cwd=root, text=True, capture_output=True)  # nosec B603 - fixed Swift command argv.
     pins = json.loads((root / 'Package.resolved').read_text())['pins']
     check(len(pins) == 1 and pins[0]['state']['revision'] == revision, 'resolved revision mismatch')
     check(pins[0]['location'] == URL, 'consumer used a substituted dependency URL')
     checkout = root / '.build/checkouts/ForgeBase'
-    actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=checkout, text=True).strip()
+    # Both git probes have constant argv and inspect only this consumer checkout.
+    actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], shell=False, cwd=checkout, text=True).strip()  # nosec B603 - fixed git inspection argv.
     check(actual == revision, 'checkout revision mismatch')
-    check(not subprocess.check_output(['git', 'status', '--porcelain'], cwd=checkout), 'dirty dependency checkout')
+    check(not subprocess.check_output(['git', 'status', '--porcelain'], shell=False, cwd=checkout), 'dirty dependency checkout')  # nosec B603 - fixed git inspection argv.
     if expected_success:
         check(completed.returncode == 0, completed.stderr)
         check(completed.stdout.strip() == 'borrowed consumer passed', completed.stdout)

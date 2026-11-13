@@ -6,7 +6,7 @@ sys.dont_write_bytecode = True
 import importlib.util
 import json
 from pathlib import Path
-import subprocess
+import subprocess  # nosec B404 - process argv is audited at each shell=False call below.
 import tempfile
 import unittest
 
@@ -23,9 +23,10 @@ class AcceptanceTests(unittest.TestCase):
             swift.write_text('#!/bin/sh\necho UNEXPECTED_BUILD >&2\nexit 73\n')
             swift.chmod(0o755)
             environment = dict(os.environ, PATH=scratch + os.pathsep + os.environ['PATH'])
-            result = subprocess.run(['bash', str(ROOT / 'Scripts/benchmark-udp-builder.sh'),
+            # The local script path and case argv are controlled fixtures; bash gets no -c.
+            result = subprocess.run(['bash', str(ROOT / 'Scripts/benchmark-udp-builder.sh'),  # nosec B603 - fixed script with fixture argv.
                                      '--output', str(Path(scratch) / 'result.json'), *arguments],
-                                    cwd=ROOT, env=environment, text=True, capture_output=True)
+                                    shell=False, cwd=ROOT, env=environment, text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn(diagnostic, result.stderr)
             self.assertNotIn('UNEXPECTED_BUILD', result.stderr)
@@ -40,6 +41,38 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_invalid_baseline_rejects_before_build(self):
         self.rejected_before_build(['--baseline', 'HEAD'], 'full 40-character')
+
+    def test_malformed_metacharacter_baseline_rejects_before_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'injected'
+            for value in ('a' * 40 + '; touch ' + str(marker), '$(touch ' + str(marker) + ')', '`touch ' + str(marker) + '`'):
+                self.rejected_before_build(['--baseline', value, '--allow-dirty'], 'full 40-character')
+                self.assertFalse(marker.exists())
+
+    def test_malformed_metacharacter_consumer_revision_rejects_before_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'injected'
+            value = 'a' * 40 + '; touch ' + str(marker)
+            swift = Path(directory) / 'swift'
+            swift.write_text('#!/bin/sh\necho UNEXPECTED_BUILD >&2\nexit 73\n')
+            swift.chmod(0o755)
+            environment = dict(os.environ, PATH=directory + os.pathsep + os.environ['PATH'])
+            # Python executes the fixed local helper; the malicious revision stays one argv element.
+            # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+            result = subprocess.run(['python3', str(ROOT / 'Scripts/test-udp-builder-consumer.py'),  # nosec B603 - fixed script and negative-test argv.
+                                     '--revision', value, '--output', str(Path(directory) / 'result.json')],
+                                    shell=False, cwd=ROOT, env=environment, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn('UNEXPECTED_BUILD', result.stderr)
+            self.assertIn('exact 40-character SHA', result.stderr)
+            self.assertFalse(marker.exists())
+
+    def test_run_passes_metacharacters_as_one_argument(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'injected'
+            value = 'literal $(touch ' + str(marker) + '); `touch ' + str(marker) + '`'
+            self.assertEqual(harness.run(['/usr/bin/printf', '%s', value]), value)
+            self.assertFalse(marker.exists())
 
     def test_provenance_missing_and_malformed_fields_reject(self):
         valid = dict(baseline_sha='a' * 40, candidate_sha='b' * 40, dirty=False,

@@ -6,7 +6,7 @@ import json
 import os
 import platform
 import re
-import subprocess
+import subprocess  # nosec B404 - process argv is audited at each shell=False call below.
 import sys
 import tempfile
 from pathlib import Path
@@ -19,7 +19,10 @@ FLAGS = ['-O', '-strict-concurrency=complete', '-warnings-as-errors']
 
 
 def run(arguments, cwd=ROOT):
-    return subprocess.check_output(arguments, cwd=cwd, stderr=subprocess.PIPE).decode().strip()
+    # Internal callers build argv from fixed tools/flags, validated SHA values,
+    # and compiler paths; shell=False preserves each path/flag as one argument.
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit, python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
+    return subprocess.check_output(arguments, shell=False, cwd=cwd, stderr=subprocess.PIPE).decode().strip()  # nosec B603 - audited argv-only internal callers.
 
 
 def digest(data):
@@ -59,7 +62,8 @@ def main():
         raise ValueError('baseline must be a full 40-character commit SHA')
     try:
         baseline_sha = run(['git', 'rev-parse', '--verify', options.baseline + '^{commit}'])
-        source = subprocess.check_output(['git', 'show', baseline_sha + ':' + BUILDER], cwd=ROOT, stderr=subprocess.PIPE)
+        # git show receives the verified commit plus a fixed source path as data.
+        source = subprocess.check_output(['git', 'show', baseline_sha + ':' + BUILDER], shell=False, cwd=ROOT, stderr=subprocess.PIPE)  # nosec B603 - fixed git verb; validated revision.
     except subprocess.CalledProcessError as error:
         raise ValueError('historical builder unavailable; fetch the exact baseline commit with full history before running') from error
     candidate_sha = run(['git', 'rev-parse', '--verify', 'HEAD'])
@@ -95,7 +99,10 @@ def main():
             executable_copy.write_bytes(executable.read_bytes())
             arguments.append('--profile-check')
             environment = dict(os.environ, LLVM_PROFILE_FILE=str(options.profile_check / 'benchmark.profraw'))
-            result = json.loads(subprocess.check_output(arguments, env=environment))
+            # The executable is this run's compiler output in a private mkdtemp;
+            # remaining arguments are fixed switches, and the profile path is env data.
+            # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+            result = json.loads(subprocess.check_output(arguments, shell=False, env=environment))  # nosec B603 - private compiled executable and fixed switches.
         else:
             result = json.loads(run(arguments))
         if run(['git', 'rev-parse', 'HEAD']) != candidate_sha or run(['git', 'status', '--porcelain', '--untracked-files=all']) != worktree_status or (ROOT / BENCHMARK).read_bytes() != benchmark_source:
