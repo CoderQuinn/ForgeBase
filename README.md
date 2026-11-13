@@ -103,6 +103,17 @@ an independently owned `Data` snapshot of the readable window. Custom buffer
 implementations provide their own `materialize()` witness; ForgeBase never
 switches on concrete conformer types.
 
+`withUnsafeReadableBytes` borrows only the logical readable window, synchronously;
+the pointer must not escape its closure. Contiguous buffers avoid preliminary
+materialization; legacy conformers use the compatible `materialize()` default.
+`buildUDPIPv4(..., payloadBuffer: window)` still returns owned `Data` and copies
+the payload into that result. This is not an end-to-end zero-copy contract.
+To roll a consumer back to the compatible copy path, pass
+`payload: window.materialize()` instead. Keep the previous exact Git revision in
+the consumer lockfile for a dependency rollback; these tools do not change pins
+or publish a version. The older v0.3.0 lacks the borrowed API, so code using it
+must also switch to the Data call when restoring that pin.
+
 The two concrete `Data`-backed buffers are `Hashable` by readable byte content.
 For a slice, backing bytes outside its readable window and its backing offset do
 not participate in equality or hashing. Hashing is O(n). The
@@ -128,3 +139,18 @@ invalid inputs.
 - Tests live under `Tests/ForgeBaseTests` (IPv4 parsing, CIDR utilities, packet buffers, UDP/IPv4 build/parse)
 - CI and the locally reproducible coverage gate are documented in [`docs/CI.md`](docs/CI.md)
 - The pre-1.0 compatibility and release contract is documented in [`docs/VERSIONING.md`](docs/VERSIONING.md)
+
+### Reproducible UDP builder checks
+
+Run correctness first (the checkout must be clean):
+
+```sh
+bash Scripts/benchmark-udp-builder.sh --self-test --output /tmp/udp-correctness.json
+FORGEBASE_BENCHMARK_TEST_RESULT=/tmp/udp-correctness.json python3 Scripts/test-udp-builder-benchmark.py
+python3 Scripts/test-udp-builder-consumer.py --revision "$(git rev-parse HEAD)" --output /tmp/udp-consumer.json
+```
+
+The consumer requires that exact revision to be available at the public Git URL.
+The benchmark requires full history containing its exact historical baseline;
+for a shallow clone, fetch history before running. See [CI documentation](docs/CI.md)
+for result provenance, instrumentation and serialized native measurement.
