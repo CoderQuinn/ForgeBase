@@ -113,26 +113,76 @@ or joint component acceptance.
 
 ### Local UDP assembly microbenchmark
 
-Run `bash Scripts/benchmark-udp-builder.sh`. This builds the current release
-module and the real `d5a75c7` builder in a separate optimized baseline module,
-checks byte equality, warms up both implementations, alternates execution order,
-and reports the median of seven samples. Results are consumed through a checksum
-sink. The baseline source and binaries are retained in the printed temporary path.
+Correctness is the default:
 
-On Apple Silicon / Swift 6.3.3, one local run reported (nanoseconds per packet):
+```sh
+bash Scripts/benchmark-udp-builder.sh --self-test --output /tmp/udp-correctness.json
+FORGEBASE_BENCHMARK_TEST_RESULT=/tmp/udp-correctness.json python3 Scripts/test-udp-builder-benchmark.py
+```
 
-| Payload bytes | Original PR baseline | Candidate |
-| ---: | ---: | ---: |
-| 0 | 635 | 103 |
-| 64 | 805 | 105 |
-| 1472 | 855 | 135 |
-| 4096 | 929 | 230 |
-| 65507 | 5068 | 2501 |
+The exact historical commit `d5a75c766871436619b8fb431567b7d7ebf2d839`
+must be available with its original builder source. A shallow checkout needs
+`git fetch --unshallow origin`; missing source fails before building, with no
+HEAD substitution. `--baseline` accepts an available full commit SHA.
 
-This compares the Data entry point, including assembly and result lifetime, not
-transport throughput. It does not measure allocation counts, RSS, HEV parity or
-device performance. The final owned Data is zero initialized before header writes
-and the payload copy; this is not an uninitialized or zero-copy allocation claim.
+The harness compares Data, contiguous borrowing, a nonzero-index nested slice,
+and a legacy materializing conformer at 0/64/1472/4096/65507 bytes. Every baseline
+and candidate packet must match an independent complete-wire encoder for three
+source ports before timing can begin. The reference is anchored to a manually
+checked empty datagram; `--self-test` flips every byte of every fixture and
+requires rejection. Oversized payload rejection is also checked. Existing unit
+tests retain lifetime and validation-precedence coverage.
+
+For native Release timing, obtain exclusive use of the machine, then run:
+
+```sh
+bash Scripts/benchmark-udp-builder.sh --measure --smoke --output /tmp/udp-smoke.json
+# Omit --smoke for seven rounds with the full iteration counts.
+```
+
+Schema version 1 records candidate/baseline SHAs, dirty status, original baseline
+source/benchmark source/executable/fixture SHA-256 digests, Swift/OS/architecture,
+optimization flags, iterations, AB/BA execution order, and raw batch-duration
+nanoseconds. These are batch samples, not per-packet p99. The five-size fixture
+has SHA-256 `34098b7abdc7efaae5908f31cc4c5bddddffc87ceb39ddb32b5ea41a56db5e91`.
+Correctness-only output has empty sample arrays and `timing_status: not_run`.
+Dirty input rejects unless `--allow-dirty` explicitly permits diagnostic evidence;
+its result is never qualified as native measurement.
+
+Adapter calls are counted outside timing. `scoped_borrow_override_calls` counts
+the synthetic forwarding override (not protocol-default entries), while
+`materialize_calls` observes the legacy fallback. Owned-output payload bytes are
+inferred from validated size and the production copy contract, not allocation
+instrumentation. Timed borrowing uses concrete windows directly; timed fallback
+omits counters. Allocation counts, RSS, transport throughput, HEV parity and
+device performance remain unmeasured. Final output owns a copied payload.
+
+Instrumented harness correctness is separate:
+
+```sh
+bash Scripts/benchmark-udp-builder.sh --allow-dirty --profile-check /tmp/udp-profile --output /tmp/udp-profile.json
+xcrun llvm-profdata merge -sparse /tmp/udp-profile/benchmark.profraw -o /tmp/udp-profile/benchmark.profdata
+xcrun llvm-cov report /tmp/udp-profile/benchmark -instr-profile=/tmp/udp-profile/benchmark.profdata
+```
+
+`--profile-check` exercises the smoke timing branches only for coverage, with
+`timing_status: instrumented_correctness`; its samples cannot qualify native
+performance. First-party production coverage remains the existing required gate.
+This tooling change adds no production runtime lines; changed production
+coverage is N/A (0/0). Audit benchmark/tooling executable coverage separately and
+state any unmeasured scope rather than excluding it to meet a threshold.
+
+The clean consumer uses the public HTTPS Git dependency, both products and an
+exact revision. It asserts the lockfile and clean checkout HEAD, exercises the
+borrowed public API, and verifies old v0.3.0 rejects that API:
+
+```sh
+python3 Scripts/test-udp-builder-consumer.py --revision "$(git rev-parse HEAD)" --output /tmp/udp-consumer.json
+```
+
+The exact candidate must already exist at the remote. No consumer pin, tag or
+release is changed. Roll back this tooling commit independently, or use the
+compatible Data payload call and previous exact consumer pin described in README.
 
 ## Explicitly unsupported behavior (unchanged)
 
