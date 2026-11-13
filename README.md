@@ -128,3 +128,10 @@ invalid inputs.
 - Tests live under `Tests/ForgeBaseTests` (IPv4 parsing, CIDR utilities, packet buffers, UDP/IPv4 build/parse)
 - CI and the locally reproducible coverage gate are documented in [`docs/CI.md`](docs/CI.md)
 - The pre-1.0 compatibility and release contract is documented in [`docs/VERSIONING.md`](docs/VERSIONING.md)
+
+## License
+
+First-party material is licensed under **MPL-2.0**; see [LICENSE](LICENSE).
+See [COPYRIGHT.md](COPYRIGHT.md) for the exact scope, third-party exclusions,
+retained historical grants and copyright notices. No commercial-license or
+store-distribution exception is granted here.

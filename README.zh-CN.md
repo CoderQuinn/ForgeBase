@@ -108,3 +108,9 @@ if let ipView = FBIPPacketView(buffer: FBDataPacketBuffer(packet)),
 - 测试位于 `Tests/ForgeBaseTests`，覆盖 IPv4 解析、CIDR 工具、数据包缓冲区以及 UDP/IPv4 构建与解析
 - CI 和本地可复现的覆盖率门禁参见 [`docs/CI.md`](docs/CI.md)
 - 1.0 前的兼容性与发布约定参见 [`docs/VERSIONING.md`](docs/VERSIONING.md)
+
+## 许可证
+
+自有材料采用 **MPL-2.0**，完整条款见 [LICENSE](LICENSE)。
+适用范围、第三方例外、历史授权及版权声明见 [COPYRIGHT.md](COPYRIGHT.md)。
+本次变更不授予额外商业许可或商店分发例外。
